@@ -1,7 +1,7 @@
 const KEY = "fcc-v04";
 
 const demo = {
-  cash: 4050,
+  cash: 0,
   events: [],
   recurring: [
     {
