@@ -1,1 +1,485 @@
-const KEY="fcc-v03";const future=n=>{let d=new Date();d.setDate(d.getDate()+n);return d.toISOString().slice(0,10)};const demo={accounts:[{name:"Chequing",balance:3200},{name:"Savings",balance:850}],recurring:[{desc:"Salary",amount:2000,frequency:"biweekly",start:future(3)},{desc:"Consumer proposal",amount:-500,frequency:"biweekly",start:future(10)},{desc:"Utilities",amount:-190,frequency:"monthly",start:future(5)},{desc:"Insurance",amount:-210,frequency:"monthly",start:future(12)}],events:[{date:future(3),desc:"Credit card payment",amount:-430},{date:future(5),desc:"Utility bill",amount:-185},{date:future(8),desc:"Roof repair",amount:-1200}],settings:{safetyBuffer:1000}};let db=JSON.parse(localStorage.getItem(KEY)||"null")||demo;const money=n=>new Intl.NumberFormat("en-CA",{style:"currency",currency:"CAD",maximumFractionDigits:0}).format(n);const cash=()=>db.accounts.reduce((s,a)=>s+Number(a.balance),0);function forecast(days){let bal=cash(),now=new Date();now.setHours(0,0,0,0),out=[];for(let i=0;i<=days;i++){let d=new Date(now);d.setDate(now.getDate()+i);let ds=d.toISOString().slice(0,10);if(i){db.events.forEach(e=>{if(e.date===ds)bal+=Number(e.amount)});db.recurring.forEach(r=>{let s=new Date(r.start+"T12:00:00"),step=r.frequency==="weekly"?7:r.frequency==="biweekly"?14:30;let x=new Date(s);while(x<d)x.setDate(x.getDate()+step);if(x.toISOString().slice(0,10)===ds)bal+=Number(r.amount)})}out.push({date:ds,balance:bal})}return out}function safe(){let p=forecast(90),m=p.reduce((a,b)=>b.balance<a.balance?b:a,p[0]);return{value:Math.max(0,m.balance-db.settings.safetyBuffer),min:m}}function render(){let c=cash(),p=forecast(90),m=p.reduce((a,b)=>b.balance<a.balance?b:a,p[0]),st=safe(),status=m.balance<0?"RED":m.balance<db.settings.safetyBuffer?"YELLOW":"GREEN";cash.textContent=money(c);document.getElementById("status").textContent=status;document.getElementById("status").className=status.toLowerCase();statusText.textContent=status==="GREEN"?"Forecast remains above the safety buffer.":status==="YELLOW"?"Forecast falls below the safety buffer.":"Forecast reaches a negative balance.";min90.textContent=money(m.balance);min90Date.textContent=m.date;safeToSpend.textContent=money(st.value);safeToSpendText.textContent=st.value?`You can spend up to ${money(st.value)} today while retaining the safety buffer.`:`No discretionary spending is currently safe without reducing the safety buffer.`;safeDetails.innerHTML=`<div><span>Current cash</span><b>${money(c)}</b></div><div><span>Projected minimum</span><b>${money(st.min.balance)}</b></div><div><span>Minimum date</span><b>${st.min.date}</b></div><div><span>Safety buffer</span><b>${money(db.settings.safetyBuffer)}</b></div>`;actions.innerHTML=`<div class="notice"><b>${status}</b> ${status==="GREEN"?"No immediate cash-flow warning.":status==="YELLOW"?"Review upcoming spending and commitments.":"Review upcoming commitments immediately."}</div><div class="notice">Safe to spend today: <b>${money(st.value)}</b></div>`;renderForecast(p);events.innerHTML=db.events.sort((a,b)=>a.date.localeCompare(b.date)).map((e,i)=>`<div class="row"><span>${e.date} — ${e.desc}</span><b>${money(e.amount)}</b><button onclick="removeEvent(${i})">×</button></div>`).join("");recurring.innerHTML=db.recurring.map(r=>`<div class="row"><span>${r.desc} (${r.frequency})</span><b>${money(r.amount)}</b></div>`).join("");buffer.value=db.settings.safetyBuffer}function renderForecast(p){let ids=[0,7,14,21,30,45,60,75,90],v=ids.map(i=>p[i]),lo=Math.min(...v.map(x=>x.balance)),hi=Math.max(...v.map(x=>x.balance));forecast.innerHTML=v.map(x=>{let h=hi===lo?50:Math.max(4,(x.balance-lo)/(hi-lo)*125);return`<div class="point"><div class="barwrap"><div class="bar" style="height:${h}px"></div></div><b>${money(x.balance)}</b><br>${x.date.slice(5)}</div>`}).join("")}function save(){localStorage.setItem(KEY,JSON.stringify(db));render()}function removeEvent(i){db.events.splice(i,1);save()}window.removeEvent=removeEvent;eventForm.onsubmit=e=>{e.preventDefault();db.events.push({date:eventDate.value,desc:eventDesc.value,amount:Number(eventAmount.value)});e.target.reset();save()};recForm.onsubmit=e=>{e.preventDefault();db.recurring.push({desc:recDesc.value,amount:Number(recAmount.value),frequency:recFreq.value,start:recStart.value});e.target.reset();save()};buffer.onchange=e=>{db.settings.safetyBuffer=Number(e.target.value);save()};document.getElementById('resetDemo').onclick =()=>{db=JSON.parse(JSON.stringify(demo));save()};csvFile.onchange=async e=>{let t=await e.target.files[0].text(),ls=t.trim().split(/\r?\n/),n=0;for(let i=1;i<ls.length;i++){let a=ls[i].split(",");if(a.length>=3){db.events.push({date:a[0],desc:a[1],amount:Number(a[2])});n++}}importResult.textContent=`Imported ${n} rows. Review events before relying on them.`;save()};parseEmail.onclick=()=>{let t=emailText.value,a=t.match(/(?:\$|CAD\s*)([0-9,]+(?:\.\d{2})?)/i);if(!a){emailResult.textContent="Could not find a likely amount.";return}db.events.push({date:future(7),desc:(t.split(/\r?\n/).find(x=>x.trim())||"Bill").slice(0,80),amount:-Number(a[1].replace(/,/g,""))});save();emailResult.textContent="Bill added for review."};render();
+const KEY = "fcc-v03";
+
+const future = (n) => {
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+
+const demo = {
+  accounts: [
+    { name: "Chequing", balance: 3200 },
+    { name: "Savings", balance: 850 }
+  ],
+
+  recurring: [
+    {
+      id: 1,
+      desc: "Salary",
+      amount: 2000,
+      frequency: "biweekly",
+      start: future(3)
+    },
+    {
+      id: 2,
+      desc: "Consumer proposal",
+      amount: -500,
+      frequency: "monthly",
+      start: future(7)
+    },
+    {
+      id: 3,
+      desc: "Rent",
+      amount: -1200,
+      frequency: "monthly",
+      start: future(10)
+    }
+  ],
+
+  transactions: []
+};
+
+
+// -----------------------------
+// STORAGE
+// -----------------------------
+
+function load() {
+  try {
+    const saved = localStorage.getItem(KEY);
+
+    if (!saved) {
+      return structuredClone(demo);
+    }
+
+    const data = JSON.parse(saved);
+
+    return {
+      accounts: Array.isArray(data.accounts) ? data.accounts : [],
+      recurring: Array.isArray(data.recurring) ? data.recurring : [],
+      transactions: Array.isArray(data.transactions)
+        ? data.transactions
+        : []
+    };
+
+  } catch (error) {
+    console.error("Could not load saved data:", error);
+    return structuredClone(demo);
+  }
+}
+
+
+function save(data) {
+  localStorage.setItem(KEY, JSON.stringify(data));
+}
+
+
+function getData() {
+  return load();
+}
+
+
+// -----------------------------
+// ACCOUNTS
+// -----------------------------
+
+function getAccounts() {
+  return getData().accounts;
+}
+
+
+function saveAccounts(accounts) {
+  const data = getData();
+  data.accounts = accounts;
+  save(data);
+}
+
+
+// -----------------------------
+// RECURRING
+// -----------------------------
+
+function getRecurring() {
+  return getData().recurring;
+}
+
+
+function saveRecurring(recurring) {
+  const data = getData();
+  data.recurring = recurring;
+  save(data);
+}
+
+
+function removeRecurring(id) {
+  const recurring = getRecurring();
+
+  const updated = recurring.filter(item => String(item.id) !== String(id));
+
+  saveRecurring(updated);
+  render();
+}
+
+
+// -----------------------------
+// TRANSACTIONS
+// -----------------------------
+
+function getTransactions() {
+  return getData().transactions;
+}
+
+
+function saveTransactions(transactions) {
+  const data = getData();
+  data.transactions = transactions;
+  save(data);
+}
+
+
+// -----------------------------
+// DEMO RESET
+// -----------------------------
+
+function resetDemo() {
+  const confirmed = confirm(
+    "Reset Financial Control Centre to the demo data?"
+  );
+
+  if (!confirmed) return;
+
+  localStorage.setItem(
+    KEY,
+    JSON.stringify(structuredClone(demo))
+  );
+
+  render();
+}
+
+
+// -----------------------------
+// HELPERS
+// -----------------------------
+
+function money(value) {
+  const number = Number(value) || 0;
+
+  return number.toLocaleString("en-CA", {
+    style: "currency",
+    currency: "CAD"
+  });
+}
+
+
+function escapeHTML(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+
+function frequencyLabel(value) {
+  const labels = {
+    weekly: "Weekly",
+    biweekly: "Biweekly",
+    monthly: "Monthly",
+    yearly: "Yearly"
+  };
+
+  return labels[value] || value;
+}
+
+
+// -----------------------------
+// CALCULATIONS
+// -----------------------------
+
+function currentBalance() {
+  const accounts = getAccounts();
+
+  return accounts.reduce(
+    (total, account) => total + Number(account.balance || 0),
+    0
+  );
+}
+
+
+function monthlyRecurringIncome() {
+  return getRecurring()
+    .filter(item => Number(item.amount) > 0)
+    .reduce((total, item) => {
+      const amount = Number(item.amount);
+
+      switch (item.frequency) {
+        case "weekly":
+          return total + amount * 52 / 12;
+
+        case "biweekly":
+          return total + amount * 26 / 12;
+
+        case "monthly":
+          return total + amount;
+
+        case "yearly":
+          return total + amount / 12;
+
+        default:
+          return total;
+      }
+    }, 0);
+}
+
+
+function monthlyRecurringExpenses() {
+  return getRecurring()
+    .filter(item => Number(item.amount) < 0)
+    .reduce((total, item) => {
+      const amount = Math.abs(Number(item.amount));
+
+      switch (item.frequency) {
+        case "weekly":
+          return total + amount * 52 / 12;
+
+        case "biweekly":
+          return total + amount * 26 / 12;
+
+        case "monthly":
+          return total + amount;
+
+        case "yearly":
+          return total + amount / 12;
+
+        default:
+          return total;
+      }
+    }, 0);
+}
+
+
+function monthlyNet() {
+  return monthlyRecurringIncome() - monthlyRecurringExpenses();
+}
+
+
+// -----------------------------
+// RENDER
+// -----------------------------
+
+function render() {
+  const data = getData();
+
+  renderAccounts(data.accounts);
+  renderRecurring(data.recurring);
+  renderSummary();
+}
+
+
+// -----------------------------
+// ACCOUNTS UI
+// -----------------------------
+
+function renderAccounts(accounts) {
+  const container =
+    document.getElementById("accounts") ||
+    document.getElementById("accountList");
+
+  if (!container) return;
+
+  if (!accounts.length) {
+    container.innerHTML = "<p>No accounts.</p>";
+    return;
+  }
+
+  container.innerHTML = accounts.map(account => `
+    <div class="account-row">
+      <div>
+        <strong>${escapeHTML(account.name)}</strong>
+      </div>
+
+      <div>
+        ${money(account.balance)}
+      </div>
+    </div>
+  `).join("");
+}
+
+
+// -----------------------------
+// RECURRING UI
+// -----------------------------
+
+function renderRecurring(recurring) {
+  const container =
+    document.getElementById("recurring") ||
+    document.getElementById("recurringList");
+
+  if (!container) return;
+
+  if (!recurring.length) {
+    container.innerHTML = "<p>No recurring transactions.</p>";
+    return;
+  }
+
+  container.innerHTML = recurring.map(item => {
+    const amount = Number(item.amount) || 0;
+
+    return `
+      <div class="recurring-row">
+
+        <div class="recurring-info">
+          <strong>${escapeHTML(item.desc)}</strong>
+
+          <small>
+            ${frequencyLabel(item.frequency)}
+            · ${escapeHTML(item.start)}
+          </small>
+        </div>
+
+        <div class="recurring-amount ${
+          amount >= 0 ? "income" : "expense"
+        }">
+          ${money(amount)}
+        </div>
+
+        <button
+          type="button"
+          class="delete-recurring"
+          onclick="removeRecurring('${String(item.id)}')"
+        >
+          Delete
+        </button>
+
+      </div>
+    `;
+  }).join("");
+}
+
+
+// -----------------------------
+// SUMMARY UI
+// -----------------------------
+
+function renderSummary() {
+  const balance = currentBalance();
+  const income = monthlyRecurringIncome();
+  const expenses = monthlyRecurringExpenses();
+  const net = monthlyNet();
+
+  const balanceEl =
+    document.getElementById("currentBalance") ||
+    document.getElementById("balance");
+
+  const incomeEl =
+    document.getElementById("monthlyIncome") ||
+    document.getElementById("income");
+
+  const expensesEl =
+    document.getElementById("monthlyExpenses") ||
+    document.getElementById("expenses");
+
+  const netEl =
+    document.getElementById("monthlyNet") ||
+    document.getElementById("net");
+
+  if (balanceEl) balanceEl.textContent = money(balance);
+  if (incomeEl) incomeEl.textContent = money(income);
+  if (expensesEl) expensesEl.textContent = money(expenses);
+  if (netEl) netEl.textContent = money(net);
+}
+
+
+// -----------------------------
+// ADD RECURRING TRANSACTION
+// -----------------------------
+
+function addRecurring(desc, amount, frequency, start) {
+  const recurring = getRecurring();
+
+  const newItem = {
+    id: Date.now(),
+    desc: desc,
+    amount: Number(amount),
+    frequency: frequency,
+    start: start
+  };
+
+  recurring.push(newItem);
+
+  saveRecurring(recurring);
+  render();
+}
+
+
+// -----------------------------
+// FORM HANDLING
+// -----------------------------
+
+function setupRecurringForm() {
+  const form =
+    document.getElementById("recurringForm");
+
+  if (!form) return;
+
+  form.addEventListener("submit", event => {
+    event.preventDefault();
+
+    const desc =
+      form.querySelector('[name="desc"]')?.value.trim();
+
+    const amount =
+      form.querySelector('[name="amount"]')?.value;
+
+    const frequency =
+      form.querySelector('[name="frequency"]')?.value;
+
+    const start =
+      form.querySelector('[name="start"]')?.value;
+
+    if (!desc || !amount || !frequency || !start) {
+      alert("Please complete all fields.");
+      return;
+    }
+
+    addRecurring(
+      desc,
+      amount,
+      frequency,
+      start
+    );
+
+    form.reset();
+  });
+}
+
+
+// -----------------------------
+// RESET BUTTON
+// -----------------------------
+
+function setupResetButton() {
+  const button = document.getElementById("resetDemo");
+
+  if (!button) return;
+
+  button.onclick = resetDemo;
+}
+
+
+// -----------------------------
+// INITIALIZATION
+// -----------------------------
+
+document.addEventListener("DOMContentLoaded", () => {
+  render();
+  setupRecurringForm();
+  setupResetButton();
+});
+
+
+// Make functions available to inline HTML buttons.
+window.removeRecurring = removeRecurring;
+window.resetDemo = resetDemo;
+window.addRecurring = addRecurring;
