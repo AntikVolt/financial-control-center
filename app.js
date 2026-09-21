@@ -1,16 +1,20 @@
-const KEY = "fcc-v03";
-
-const future = (n) => {
-  const d = new Date();
-  d.setDate(d.getDate() + n);
-  return d.toISOString().slice(0, 10);
-};
+const KEY = "fcc-v04";
 
 const demo = {
   accounts: [
-    { name: "Chequing", balance: 3200 },
-    { name: "Savings", balance: 850 }
+    {
+      id: 1,
+      name: "Chequing",
+      balance: 3200
+    },
+    {
+      id: 2,
+      name: "Savings",
+      balance: 850
+    }
   ],
+
+  transactions: [],
 
   recurring: [
     {
@@ -18,33 +22,31 @@ const demo = {
       desc: "Salary",
       amount: 2000,
       frequency: "biweekly",
-      start: future(3)
+      start: "2026-09-24"
     },
     {
       id: 2,
       desc: "Consumer proposal",
       amount: -500,
       frequency: "monthly",
-      start: future(7)
+      start: "2026-09-28"
     },
     {
       id: 3,
       desc: "Rent",
       amount: -1200,
       frequency: "monthly",
-      start: future(10)
+      start: "2026-10-01"
     }
-  ],
-
-  transactions: []
+  ]
 };
 
 
-// -----------------------------
+// =====================================================
 // STORAGE
-// -----------------------------
+// =====================================================
 
-function load() {
+function getData() {
   try {
     const saved = localStorage.getItem(KEY);
 
@@ -56,10 +58,526 @@ function load() {
 
     return {
       accounts: Array.isArray(data.accounts) ? data.accounts : [],
-      recurring: Array.isArray(data.recurring) ? data.recurring : [],
       transactions: Array.isArray(data.transactions)
         ? data.transactions
+        : [],
+      recurring: Array.isArray(data.recurring)
+        ? data.recurring
         : []
+    };
+
+  } catch (error) {
+    console.error("Storage error:", error);
+    return structuredClone(demo);
+  }
+}
+
+
+function saveData(data) {
+  localStorage.setItem(KEY, JSON.stringify(data));
+}
+
+
+// =====================================================
+// MONEY
+// =====================================================
+
+function money(value) {
+  return Number(value || 0).toLocaleString("en-CA", {
+    style: "currency",
+    currency: "CAD"
+  });
+}
+
+
+// =====================================================
+// ACCOUNTS
+// =====================================================
+
+function getAccounts() {
+  return getData().accounts;
+}
+
+
+function accountBalance(account) {
+  const transactions = getData().transactions;
+
+  const transactionTotal = transactions
+    .filter(t => String(t.accountId) === String(account.id))
+    .reduce((sum, t) => sum + Number(t.amount || 0), 0);
+
+  return Number(account.balance || 0) + transactionTotal;
+}
+
+
+function totalBalance() {
+  return getAccounts().reduce(
+    (sum, account) => sum + accountBalance(account),
+    0
+  );
+}
+
+
+// =====================================================
+// TRANSACTIONS
+// =====================================================
+
+function getTransactions() {
+  return getData().transactions;
+}
+
+
+function addTransaction() {
+
+  const descriptionInput =
+    document.getElementById("transactionDescription");
+
+  const amountInput =
+    document.getElementById("transactionAmount");
+
+  const accountInput =
+    document.getElementById("transactionAccount");
+
+  const dateInput =
+    document.getElementById("transactionDate");
+
+  if (!descriptionInput || !amountInput) {
+    alert("Transaction form fields were not found.");
+    return;
+  }
+
+  const description = descriptionInput.value.trim();
+  const amount = Number(amountInput.value);
+
+  if (!description) {
+    alert("Enter a transaction description.");
+    return;
+  }
+
+  if (!amount || isNaN(amount)) {
+    alert("Enter a valid amount.");
+    return;
+  }
+
+  const data = getData();
+
+  let accountId = accountInput
+    ? accountInput.value
+    : data.accounts[0]?.id;
+
+  const transaction = {
+    id: Date.now(),
+    description: description,
+    amount: amount,
+    accountId: accountId,
+    date: dateInput?.value || new Date().toISOString().slice(0, 10)
+  };
+
+  data.transactions.push(transaction);
+
+  saveData(data);
+
+  descriptionInput.value = "";
+  amountInput.value = "";
+
+  render();
+}
+
+
+// =====================================================
+// DELETE TRANSACTION
+// =====================================================
+
+function deleteTransaction(id) {
+
+  const data = getData();
+
+  data.transactions = data.transactions.filter(
+    transaction =>
+      String(transaction.id) !== String(id)
+  );
+
+  saveData(data);
+
+  render();
+}
+
+
+// =====================================================
+// TRANSACTION LIST
+// =====================================================
+
+function renderTransactions() {
+
+  const container =
+    document.getElementById("transactions") ||
+    document.getElementById("transactionList");
+
+  if (!container) return;
+
+  const transactions = getTransactions();
+
+  if (transactions.length === 0) {
+
+    container.innerHTML = `
+      <div class="empty-state">
+        No transactions yet.
+      </div>
+    `;
+
+    return;
+  }
+
+  const sorted = [...transactions].sort(
+    (a, b) =>
+      new Date(b.date) - new Date(a.date)
+  );
+
+  container.innerHTML = sorted.map(transaction => {
+
+    const amount = Number(transaction.amount || 0);
+
+    const account =
+      getAccounts().find(
+        a => String(a.id) === String(transaction.accountId)
+      );
+
+    return `
+      <div class="transaction-row">
+
+        <div class="transaction-date">
+          ${escapeHTML(transaction.date)}
+        </div>
+
+        <div class="transaction-description">
+          <strong>
+            ${escapeHTML(transaction.description)}
+          </strong>
+
+          <small>
+            ${escapeHTML(account?.name || "Account")}
+          </small>
+        </div>
+
+        <div class="transaction-amount ${
+          amount >= 0 ? "income" : "expense"
+        }">
+          ${amount >= 0 ? "+" : ""}${money(amount)}
+        </div>
+
+        <button
+          type="button"
+          onclick="deleteTransaction('${transaction.id}')"
+        >
+          Delete
+        </button>
+
+      </div>
+    `;
+
+  }).join("");
+}
+
+
+// =====================================================
+// ACCOUNT LIST
+// =====================================================
+
+function renderAccounts() {
+
+  const container =
+    document.getElementById("accounts") ||
+    document.getElementById("accountList");
+
+  if (!container) return;
+
+  const accounts = getAccounts();
+
+  container.innerHTML = accounts.map(account => {
+
+    const balance = accountBalance(account);
+
+    return `
+      <div class="account-row">
+
+        <div class="account-name">
+          ${escapeHTML(account.name)}
+        </div>
+
+        <div class="account-balance">
+          ${money(balance)}
+        </div>
+
+      </div>
+    `;
+
+  }).join("");
+}
+
+
+// =====================================================
+// ACCOUNT SELECTOR
+// =====================================================
+
+function renderAccountSelector() {
+
+  const selector =
+    document.getElementById("transactionAccount");
+
+  if (!selector) return;
+
+  const accounts = getAccounts();
+
+  selector.innerHTML = accounts.map(account => `
+    <option value="${account.id}">
+      ${escapeHTML(account.name)}
+    </option>
+  `).join("");
+}
+
+
+// =====================================================
+// RECURRING
+// =====================================================
+
+function renderRecurring() {
+
+  const container =
+    document.getElementById("recurring") ||
+    document.getElementById("recurringList");
+
+  if (!container) return;
+
+  const recurring = getData().recurring;
+
+  if (!recurring.length) {
+
+    container.innerHTML = `
+      <div class="empty-state">
+        No recurring transactions.
+      </div>
+    `;
+
+    return;
+  }
+
+  container.innerHTML = recurring.map(item => {
+
+    const amount = Number(item.amount || 0);
+
+    return `
+      <div class="recurring-row">
+
+        <div>
+          <strong>
+            ${escapeHTML(item.desc)}
+          </strong>
+
+          <small>
+            ${escapeHTML(item.frequency)}
+            · ${escapeHTML(item.start)}
+          </small>
+        </div>
+
+        <div class="${
+          amount >= 0 ? "income" : "expense"
+        }">
+          ${amount >= 0 ? "+" : ""}${money(amount)}
+        </div>
+
+        <button
+          type="button"
+          onclick="deleteRecurring('${item.id}')"
+        >
+          Delete
+        </button>
+
+      </div>
+    `;
+
+  }).join("");
+}
+
+
+function deleteRecurring(id) {
+
+  const data = getData();
+
+  data.recurring = data.recurring.filter(
+    item =>
+      String(item.id) !== String(id)
+  );
+
+  saveData(data);
+
+  render();
+}
+
+
+// =====================================================
+// SUMMARY
+// =====================================================
+
+function renderSummary() {
+
+  const balance = totalBalance();
+
+  const balanceElement =
+    document.getElementById("currentBalance") ||
+    document.getElementById("balance");
+
+  if (balanceElement) {
+    balanceElement.textContent = money(balance);
+  }
+
+
+  const transactions = getTransactions();
+
+  const income = transactions
+    .filter(t => Number(t.amount) > 0)
+    .reduce((sum, t) => sum + Number(t.amount), 0);
+
+  const expenses = transactions
+    .filter(t => Number(t.amount) < 0)
+    .reduce((sum, t) => sum + Math.abs(Number(t.amount)), 0);
+
+
+  const incomeElement =
+    document.getElementById("income") ||
+    document.getElementById("transactionIncome");
+
+  const expenseElement =
+    document.getElementById("expenses") ||
+    document.getElementById("transactionExpenses");
+
+
+  if (incomeElement) {
+    incomeElement.textContent = money(income);
+  }
+
+  if (expenseElement) {
+    expenseElement.textContent = money(expenses);
+  }
+}
+
+
+// =====================================================
+// RESET
+// =====================================================
+
+function resetDemo() {
+
+  const confirmed = confirm(
+    "Reset the Financial Control Centre to the demo data?"
+  );
+
+  if (!confirmed) return;
+
+  localStorage.setItem(
+    KEY,
+    JSON.stringify(structuredClone(demo))
+  );
+
+  render();
+}
+
+
+// =====================================================
+// HTML SAFETY
+// =====================================================
+
+function escapeHTML(value) {
+
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+
+// =====================================================
+// FORM
+// =====================================================
+
+function setupTransactionForm() {
+
+  const form =
+    document.getElementById("transactionForm");
+
+  if (!form) return;
+
+  form.addEventListener("submit", function(event) {
+
+    event.preventDefault();
+
+    addTransaction();
+
+  });
+}
+
+
+// =====================================================
+// RESET BUTTON
+// =====================================================
+
+function setupResetButton() {
+
+  const button =
+    document.getElementById("resetDemo");
+
+  if (!button) return;
+
+  button.addEventListener("click", resetDemo);
+}
+
+
+// =====================================================
+// RENDER EVERYTHING
+// =====================================================
+
+function render() {
+
+  renderAccounts();
+
+  renderAccountSelector();
+
+  renderTransactions();
+
+  renderRecurring();
+
+  renderSummary();
+}
+
+
+// =====================================================
+// START
+// =====================================================
+
+document.addEventListener(
+  "DOMContentLoaded",
+  function() {
+
+    render();
+
+    setupTransactionForm();
+
+    setupResetButton();
+
+  }
+);
+
+
+// =====================================================
+// MAKE FUNCTIONS AVAILABLE TO HTML
+// =====================================================
+
+window.addTransaction = addTransaction;
+window.deleteTransaction = deleteTransaction;
+window.deleteRecurring = deleteRecurring;
+window.resetDemo = resetDemo;
+window.render = render;        : []
     };
 
   } catch (error) {
