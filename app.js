@@ -369,15 +369,67 @@ async function renderRecurring() {
 
   if (!container) return;
 
-  /*
-    Recurring will be connected to the database
-    in the next step.
-  */
+  const { data, error } = await db
+    .from("recurring")
+    .select("*")
+    .order("start_date", { ascending: true });
 
-  container.innerHTML =
-    "<p>Recurring transactions will be connected next.</p>";
+  if (error) {
+    console.error("Recurring error:", error);
+    container.innerHTML =
+      "<p>Could not load recurring transactions.</p>";
+    return;
+  }
+
+  container.innerHTML = "";
+
+  if (!data || data.length === 0) {
+    container.innerHTML =
+      "<p>No recurring transactions yet.</p>";
+    return;
+  }
+
+  data.forEach(item => {
+
+    const row = document.createElement("div");
+
+    row.innerHTML = `
+      <span>${item.start_date}</span>
+      <span>${item.description}</span>
+      <span>${item.amount}</span>
+      <span>${item.frequency}</span>
+      <button data-id="${item.id}">Delete</button>
+    `;
+
+    row.querySelector("button").addEventListener(
+      "click",
+      async () => {
+
+        const { error } = await db
+          .from("recurring")
+          .delete()
+          .eq("id", item.id);
+
+        if (error) {
+          console.error(
+            "Delete recurring error:",
+            error
+          );
+
+          alert(
+            "Could not delete recurring transaction."
+          );
+
+          return;
+        }
+
+        renderRecurring();
+      }
+    );
+
+    container.appendChild(row);
+  });
 }
-
 
 // =====================================================
 // MAIN RENDER
