@@ -430,6 +430,50 @@ async function renderRecurring() {
     container.appendChild(row);
   });
 }
+// =====================================================
+// ADD RECURRING
+// =====================================================
+
+const recForm = document.getElementById("recForm");
+
+if (recForm) {
+
+  recForm.addEventListener("submit", async function(event) {
+
+    event.preventDefault();
+
+    const description =
+      document.getElementById("recDesc").value.trim();
+
+    const amount =
+      Number(document.getElementById("recAmount").value);
+
+    const frequency =
+      document.getElementById("recFreq").value;
+
+    const startDate =
+      document.getElementById("recStart").value;
+
+    const { error } = await db
+      .from("recurring")
+      .insert({
+        description: description,
+        amount: amount,
+        frequency: frequency,
+        start_date: startDate
+      });
+
+    if (error) {
+      console.error("Add recurring error:", error);
+      alert("Could not save recurring transaction.");
+      return;
+    }
+
+    recForm.reset();
+
+    renderRecurring();
+  });
+}
 
 // =====================================================
 // MAIN RENDER
