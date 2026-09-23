@@ -666,6 +666,7 @@ async function buildForecast() {
 // RENDER FORECAST
 // =====================================================
 
+```js
 async function renderForecast() {
 
   const container =
@@ -673,10 +674,8 @@ async function renderForecast() {
 
   if (!container) return;
 
-
   const result =
     await buildForecast();
-
 
   if (!result.days.length) {
 
@@ -687,64 +686,714 @@ async function renderForecast() {
   }
 
 
-  container.innerHTML =
+  // ===================================================
+  // FIND KEY DAYS
+  // ===================================================
+
+  const todayData =
+    result.days[0];
+
+  const day30 =
+    result.days[Math.min(29, result.days.length - 1)];
+
+  const day60 =
+    result.days[Math.min(59, result.days.length - 1)];
+
+  const day90 =
+    result.days[result.days.length - 1];
+
+
+  // ===================================================
+  // FIND LOWEST BALANCE
+  // ===================================================
+
+  let minimum =
+    result.days[0];
+
+  let minimumIndex = 0;
+
+  result.days.forEach((day, index) => {
+
+    if (day.balance < minimum.balance) {
+
+      minimum = day;
+      minimumIndex = index;
+
+    }
+
+  });
+
+
+  // ===================================================
+  // CHART SETTINGS
+  // ===================================================
+
+  const width = 900;
+  const height = 280;
+
+  const left = 65;
+  const right = 25;
+  const top = 25;
+  const bottom = 45;
+
+  const balances =
+    result.days.map(day =>
+      Number(day.balance || 0)
+    );
+
+  let minBalance =
+    Math.min(...balances);
+
+  let maxBalance =
+    Math.max(...balances);
+
+  const balanceRange =
+    Math.max(
+      500,
+      maxBalance - minBalance
+    );
+
+  minBalance -=
+    balanceRange * 0.08;
+
+  maxBalance +=
+    balanceRange * 0.08;
+
+
+  function x(index) {
+
+    return (
+      left +
+      (
+        index /
+        (result.days.length - 1)
+      ) *
+      (
+        width -
+        left -
+        right
+      )
+    );
+
+  }
+
+
+  function y(balance) {
+
+    return (
+      top +
+      (
+        (maxBalance - balance) /
+        (maxBalance - minBalance)
+      ) *
+      (
+        height -
+        top -
+        bottom
+      )
+    );
+
+  }
+
+
+  // ===================================================
+  // CHART LINE
+  // ===================================================
+
+  const points =
     result.days.map(
-      day => {
+      (day, index) =>
+        `${x(index)},${y(day.balance)}`
+    ).join(" ");
 
-        const details =
-          day.items.length
-            ? day.items.map(
-                item => `
-                  <div>
-                    ${escapeHTML(item.description)}
-                    :
-                    ${item.amount >= 0 ? "+" : ""}
-                    ${money(item.amount)}
-                  </div>
-                `
-              ).join("")
-            : "";
 
+  // ===================================================
+  // ZERO LINE
+  // ===================================================
+
+  let zeroLine = "";
+
+  if (
+    minBalance <= 0 &&
+    maxBalance >= 0
+  ) {
+
+    const zeroY =
+      y(0);
+
+    zeroLine = `
+      <line
+        x1="${left}"
+        y1="${zeroY}"
+        x2="${width - right}"
+        y2="${zeroY}"
+        stroke="#dc2626"
+        stroke-width="2"
+        stroke-dasharray="7 6"
+      />
+
+      <text
+        x="${left - 8}"
+        y="${zeroY - 7}"
+        text-anchor="end"
+        font-size="12"
+        fill="#dc2626"
+      >
+        $0
+      </text>
+    `;
+
+  }
+
+
+  // ===================================================
+  // SAFETY BUFFER LINE
+  // ===================================================
+
+  const bufferInput =
+    document.getElementById("buffer");
+
+  const buffer =
+    Number(
+      bufferInput?.value || 500
+    );
+
+  let bufferLine = "";
+
+  if (
+    buffer >= minBalance &&
+    buffer <= maxBalance
+  ) {
+
+    const bufferY =
+      y(buffer);
+
+    bufferLine = `
+      <line
+        x1="${left}"
+        y1="${bufferY}"
+        x2="${width - right}"
+        y2="${bufferY}"
+        stroke="#f59e0b"
+        stroke-width="2"
+        stroke-dasharray="6 6"
+      />
+
+      <text
+        x="${left - 8}"
+        y="${bufferY - 7}"
+        text-anchor="end"
+        font-size="12"
+        fill="#d97706"
+      >
+        Buffer
+      </text>
+    `;
+
+  }
+
+
+  // ===================================================
+  // MINIMUM POINT
+  // ===================================================
+
+  const minimumX =
+    x(minimumIndex);
+
+  const minimumY =
+    y(minimum.balance);
+
+
+  // ===================================================
+  // UPCOMING EVENTS
+  // ===================================================
+
+  const upcomingEvents = [];
+
+  result.days.forEach(day => {
+
+    if (day.date === result.startDate) {
+      return;
+    }
+
+    day.items.forEach(item => {
+
+      upcomingEvents.push({
+        date: day.date,
+        description: item.description,
+        amount: Number(item.amount || 0)
+      });
+
+    });
+
+  });
+
+
+  const visibleEvents =
+    upcomingEvents.slice(0, 6);
+
+
+  let eventsHTML = "";
+
+  if (!visibleEvents.length) {
+
+    eventsHTML =
+      `<p class="forecast-empty">
+        No scheduled cash-flow events in the next 90 days.
+      </p>`;
+
+  } else {
+
+    eventsHTML =
+      visibleEvents.map(event => {
+
+        const amount =
+          event.amount;
 
         return `
-          <div class="event-row">
+          <div
+            class="forecast-event"
+            style="
+              display:flex;
+              justify-content:space-between;
+              align-items:center;
+              padding:10px 12px;
+              border-bottom:1px solid #e5e7eb;
+            "
+          >
 
             <div>
               <strong>
-                ${day.date}
+                ${escapeHTML(event.description)}
               </strong>
 
-              ${
-                details
-                  ? `<small>${details}</small>`
-                  : ""
-              }
+              <small
+                style="
+                  display:block;
+                  color:#6b7280;
+                  margin-top:3px;
+                "
+              >
+                ${escapeHTML(event.date)}
+              </small>
             </div>
 
-            <strong class="${
-              day.change >= 0
-                ? "income"
-                : "expense"
-            }">
-              ${
-                day.change >= 0
-                  ? "+"
-                  : ""
-              }
-              ${money(day.change)}
-            </strong>
-
-            <strong>
-              ${money(day.balance)}
+            <strong
+              style="
+                color:${
+                  amount >= 0
+                    ? "#16a34a"
+                    : "#dc2626"
+                };
+              "
+            >
+              ${amount >= 0 ? "+" : ""}
+              ${money(amount)}
             </strong>
 
           </div>
         `;
 
-      }
-    ).join("");
-}
+      }).join("");
 
+  }
+
+
+  // ===================================================
+  // RENDER FORECAST
+  // ===================================================
+
+  container.innerHTML = `
+
+    <!-- SUMMARY -->
+
+    <div
+      style="
+        display:grid;
+        grid-template-columns:repeat(4,minmax(0,1fr));
+        gap:12px;
+        margin-bottom:18px;
+      "
+    >
+
+      <div
+        style="
+          background:#eff6ff;
+          border:1px solid #bfdbfe;
+          border-radius:10px;
+          padding:14px;
+        "
+      >
+        <small>Today</small>
+
+        <strong
+          style="
+            display:block;
+            margin-top:5px;
+            font-size:1.3rem;
+            color:#2563eb;
+          "
+        >
+          ${money(todayData.balance)}
+        </strong>
+      </div>
+
+
+      <div
+        style="
+          background:#f0fdf4;
+          border:1px solid #bbf7d0;
+          border-radius:10px;
+          padding:14px;
+        "
+      >
+        <small>30 Days</small>
+
+        <strong
+          style="
+            display:block;
+            margin-top:5px;
+            font-size:1.3rem;
+            color:#16a34a;
+          "
+        >
+          ${money(day30.balance)}
+        </strong>
+      </div>
+
+
+      <div
+        style="
+          background:#fff7ed;
+          border:1px solid #fed7aa;
+          border-radius:10px;
+          padding:14px;
+        "
+      >
+        <small>60 Days</small>
+
+        <strong
+          style="
+            display:block;
+            margin-top:5px;
+            font-size:1.3rem;
+            color:#ea580c;
+          "
+        >
+          ${money(day60.balance)}
+        </strong>
+      </div>
+
+
+      <div
+        style="
+          background:#f5f3ff;
+          border:1px solid #ddd6fe;
+          border-radius:10px;
+          padding:14px;
+        "
+      >
+        <small>90 Days</small>
+
+        <strong
+          style="
+            display:block;
+            margin-top:5px;
+            font-size:1.3rem;
+            color:#7c3aed;
+          "
+        >
+          ${money(day90.balance)}
+        </strong>
+      </div>
+
+    </div>
+
+
+    <!-- LOWEST BALANCE -->
+
+    <div
+      style="
+        display:flex;
+        justify-content:space-between;
+        align-items:end;
+        margin-bottom:10px;
+        gap:20px;
+      "
+    >
+
+      <div>
+
+        <small
+          style="
+            font-weight:700;
+            letter-spacing:.04em;
+          "
+        >
+          LOWEST PROJECTED BALANCE
+        </small>
+
+        <strong
+          style="
+            display:block;
+            font-size:1.5rem;
+            margin-top:3px;
+            color:${
+              minimum.balance <= 0
+                ? "#dc2626"
+                : "#ea580c"
+            };
+          "
+        >
+          ${money(minimum.balance)}
+        </strong>
+
+        <small>
+          ${escapeHTML(minimum.date)}
+        </small>
+
+      </div>
+
+    </div>
+
+
+    <!-- CHART -->
+
+    <div
+      style="
+        width:100%;
+        border:1px solid #e5e7eb;
+        border-radius:12px;
+        background:#ffffff;
+        overflow:hidden;
+      "
+    >
+
+      <svg
+        viewBox="0 0 ${width} ${height}"
+        width="100%"
+        height="280"
+        preserveAspectRatio="none"
+      >
+
+        <!-- chart background -->
+
+        <rect
+          x="0"
+          y="0"
+          width="${width}"
+          height="${height}"
+          fill="#fafafa"
+        />
+
+
+        <!-- grid lines -->
+
+        <line
+          x1="${left}"
+          y1="${top}"
+          x2="${left}"
+          y2="${height - bottom}"
+          stroke="#d1d5db"
+        />
+
+        <line
+          x1="${left}"
+          y1="${height - bottom}"
+          x2="${width - right}"
+          y2="${height - bottom}"
+          stroke="#d1d5db"
+        />
+
+
+        ${zeroLine}
+
+        ${bufferLine}
+
+
+        <!-- balance line -->
+
+        <polyline
+          points="${points}"
+          fill="none"
+          stroke="#2563eb"
+          stroke-width="4"
+          stroke-linejoin="round"
+          stroke-linecap="round"
+        />
+
+
+        <!-- starting point -->
+
+        <circle
+          cx="${x(0)}"
+          cy="${y(todayData.balance)}"
+          r="5"
+          fill="#2563eb"
+        />
+
+
+        <!-- minimum point -->
+
+        <circle
+          cx="${minimumX}"
+          cy="${minimumY}"
+          r="8"
+          fill="#dc2626"
+          stroke="#ffffff"
+          stroke-width="3"
+        />
+
+
+        <text
+          x="${minimumX}"
+          y="${minimumY - 16}"
+          text-anchor="middle"
+          font-size="12"
+          font-weight="bold"
+          fill="#dc2626"
+        >
+          ${money(minimum.balance)}
+        </text>
+
+
+        <!-- date labels -->
+
+        <text
+          x="${left}"
+          y="${height - 12}"
+          font-size="12"
+          fill="#6b7280"
+        >
+          ${escapeHTML(result.startDate)}
+        </text>
+
+
+        <text
+          x="${x(29)}"
+          y="${height - 12}"
+          text-anchor="middle"
+          font-size="12"
+          fill="#6b7280"
+        >
+          30d
+        </text>
+
+
+        <text
+          x="${x(59)}"
+          y="${height - 12}"
+          text-anchor="middle"
+          font-size="12"
+          fill="#6b7280"
+        >
+          60d
+        </text>
+
+
+        <text
+          x="${width - right}"
+          y="${height - 12}"
+          text-anchor="end"
+          font-size="12"
+          fill="#6b7280"
+        >
+          90d
+        </text>
+
+      </svg>
+
+    </div>
+
+
+    <!-- LEGEND -->
+
+    <div
+      style="
+        display:flex;
+        flex-wrap:wrap;
+        gap:18px;
+        margin:10px 2px 22px;
+        font-size:.85rem;
+        color:#4b5563;
+      "
+    >
+
+      <span>
+        <span
+          style="
+            display:inline-block;
+            width:18px;
+            height:4px;
+            background:#2563eb;
+            vertical-align:middle;
+            margin-right:5px;
+          "
+        ></span>
+        Projected balance
+      </span>
+
+
+      <span>
+        <span
+          style="
+            display:inline-block;
+            width:18px;
+            height:4px;
+            background:#f59e0b;
+            vertical-align:middle;
+            margin-right:5px;
+          "
+        ></span>
+        Safety buffer
+      </span>
+
+
+      <span>
+        <span
+          style="
+            display:inline-block;
+            width:18px;
+            height:4px;
+            background:#dc2626;
+            vertical-align:middle;
+            margin-right:5px;
+          "
+        ></span>
+        Zero balance
+      </span>
+
+    </div>
+
+
+    <!-- EVENTS -->
+
+    <div>
+
+      <h3
+        style="
+          margin:0 0 8px;
+        "
+      >
+        Upcoming Cash-Flow Events
+      </h3>
+
+      <div
+        style="
+          border:1px solid #e5e7eb;
+          border-radius:10px;
+          overflow:hidden;
+          background:#ffffff;
+        "
+      >
+        ${eventsHTML}
+      </div>
+
+    </div>
+
+  `;
+
+}
 
 // =====================================================
 // MINIMUM 90-DAY BALANCE
