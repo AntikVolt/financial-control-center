@@ -666,7 +666,7 @@ async function buildForecast() {
 // RENDER FORECAST
 // =====================================================
 
-```js
+
 async function renderForecast() {
 
   const container =
