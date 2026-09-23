@@ -665,7 +665,7 @@ async function buildForecast() {
 // =====================================================
 // RENDER FORECAST
 // =====================================================
-```js
+
 async function renderForecast() {
 
   const container =
@@ -673,640 +673,78 @@ async function renderForecast() {
 
   if (!container) return;
 
+
   const result =
     await buildForecast();
 
+
   if (!result.days.length) {
+
     container.innerHTML =
       "<p>No forecast data.</p>";
+
     return;
   }
 
 
-  // ===================================================
-  // SUMMARY POINTS
-  // ===================================================
-
-  const todayData =
-    result.days[0];
-
-  const day30 =
-    result.days[Math.min(29, result.days.length - 1)];
-
-  const day60 =
-    result.days[Math.min(59, result.days.length - 1)];
-
-  const day90 =
-    result.days[result.days.length - 1];
-
-
-  // ===================================================
-  // MINIMUM
-  // ===================================================
-
-  let minimum =
-    result.days[0];
-
-  result.days.forEach(day => {
-
-    if (day.balance < minimum.balance) {
-      minimum = day;
-    }
-
-  });
-
-
-  // ===================================================
-  // CHART DIMENSIONS
-  // ===================================================
-
-  const width = 900;
-  const height = 260;
-
-  const paddingLeft = 55;
-  const paddingRight = 20;
-  const paddingTop = 25;
-  const paddingBottom = 35;
-
-  const balances =
-    result.days.map(day =>
-      Number(day.balance || 0)
-    );
-
-  let minBalance =
-    Math.min(...balances);
-
-  let maxBalance =
-    Math.max(...balances);
-
-
-  // Give the chart some breathing room.
-
-  const range =
-    Math.max(
-      100,
-      maxBalance - minBalance
-    );
-
-  minBalance -= range * 0.08;
-  maxBalance += range * 0.08;
-
-
-  function chartX(index) {
-
-    return (
-      paddingLeft +
-      (
-        index /
-        (result.days.length - 1)
-      ) *
-      (
-        width -
-        paddingLeft -
-        paddingRight
-      )
-    );
-
-  }
-
-
-  function chartY(balance) {
-
-    return (
-      paddingTop +
-      (
-        (maxBalance - balance) /
-        (maxBalance - minBalance)
-      ) *
-      (
-        height -
-        paddingTop -
-        paddingBottom
-      )
-    );
-
-  }
-
-
-  // ===================================================
-  // LINE
-  // ===================================================
-
-  const points =
+  container.innerHTML =
     result.days.map(
-      (day, index) =>
-        `${chartX(index)},${chartY(day.balance)}`
-    ).join(" ");
+      day => {
 
+        const details =
+          day.items.length
+            ? day.items.map(
+                item => `
+                  <div>
+                    ${escapeHTML(item.description)}
+                    :
+                    ${item.amount >= 0 ? "+" : ""}
+                    ${money(item.amount)}
+                  </div>
+                `
+              ).join("")
+            : "";
 
-  // ===================================================
-  // ZERO LINE
-  // ===================================================
-
-  let zeroLine = "";
-
-  if (
-    minBalance < 0 &&
-    maxBalance > 0
-  ) {
-
-    const zeroY =
-      chartY(0);
-
-    zeroLine = `
-      <line
-        x1="${paddingLeft}"
-        y1="${zeroY}"
-        x2="${width - paddingRight}"
-        y2="${zeroY}"
-        stroke="#dc2626"
-        stroke-width="1.5"
-        stroke-dasharray="6 5"
-        opacity="0.8"
-      />
-
-      <text
-        x="${paddingLeft - 8}"
-        y="${zeroY - 6}"
-        text-anchor="end"
-        font-size="11"
-        fill="#dc2626"
-      >
-        $0
-      </text>
-    `;
-
-  }
-
-
-  // ===================================================
-  // SAFETY BUFFER LINE
-  // ===================================================
-
-  const bufferInput =
-    document.getElementById("buffer");
-
-  const buffer =
-    Number(
-      bufferInput?.value || 500
-    );
-
-  let bufferLine = "";
-
-  if (
-    buffer >= minBalance &&
-    buffer <= maxBalance
-  ) {
-
-    const bufferY =
-      chartY(buffer);
-
-    bufferLine = `
-      <line
-        x1="${paddingLeft}"
-        y1="${bufferY}"
-        x2="${width - paddingRight}"
-        y2="${bufferY}"
-        stroke="#f59e0b"
-        stroke-width="1.5"
-        stroke-dasharray="5 5"
-        opacity="0.9"
-      />
-
-      <text
-        x="${paddingLeft - 8}"
-        y="${bufferY - 6}"
-        text-anchor="end"
-        font-size="11"
-        fill="#d97706"
-      >
-        Buffer
-      </text>
-    `;
-
-  }
-
-
-  // ===================================================
-  // MINIMUM POINT
-  // ===================================================
-
-  const minimumIndex =
-    result.days.findIndex(
-      day =>
-        day.date === minimum.date
-    );
-
-  const minimumX =
-    chartX(minimumIndex);
-
-  const minimumY =
-    chartY(minimum.balance);
-
-
-  // ===================================================
-  // DATE LABELS
-  // ===================================================
-
-  const firstDate =
-    result.days[0].date;
-
-  const lastDate =
-    result.days[result.days.length - 1].date;
-
-
-  // ===================================================
-  // UPCOMING EVENTS
-  // ===================================================
-
-  const upcomingEvents = [];
-
-  result.days.forEach(day => {
-
-    if (
-      day.date === result.startDate
-    ) {
-      return;
-    }
-
-    if (!day.items.length) {
-      return;
-    }
-
-    day.items.forEach(item => {
-
-      upcomingEvents.push({
-        date: day.date,
-        description: item.description,
-        amount: Number(item.amount || 0)
-      });
-
-    });
-
-  });
-
-
-  const visibleEvents =
-    upcomingEvents.slice(0, 8);
-
-
-  let eventsHTML = "";
-
-  if (!visibleEvents.length) {
-
-    eventsHTML =
-      "<p>No scheduled cash-flow events in the next 90 days.</p>";
-
-  } else {
-
-    eventsHTML =
-      visibleEvents.map(event => {
-
-        const amount =
-          event.amount;
 
         return `
           <div class="event-row">
 
             <div>
               <strong>
-                ${escapeHTML(event.description)}
+                ${day.date}
               </strong>
 
-              <small>
-                ${escapeHTML(event.date)}
-              </small>
+              ${
+                details
+                  ? `<small>${details}</small>`
+                  : ""
+              }
             </div>
 
-            <strong
-              class="${
-                amount >= 0
-                  ? "income"
-                  : "expense"
-              }"
-            >
-              ${amount >= 0 ? "+" : ""}
-              ${money(amount)}
+            <strong class="${
+              day.change >= 0
+                ? "income"
+                : "expense"
+            }">
+              ${
+                day.change >= 0
+                  ? "+"
+                  : ""
+              }
+              ${money(day.change)}
+            </strong>
+
+            <strong>
+              ${money(day.balance)}
             </strong>
 
           </div>
         `;
 
-      }).join("");
-
-  }
-
-
-  if (
-    upcomingEvents.length > 8
-  ) {
-
-    eventsHTML += `
-      <small>
-        Showing the next 8 scheduled events.
-      </small>
-    `;
-
-  }
-
-
-  // ===================================================
-  // RENDER
-  // ===================================================
-
-  container.innerHTML = `
-
-    <div
-      style="
-        display:grid;
-        grid-template-columns:repeat(4,1fr);
-        gap:12px;
-        margin-bottom:20px;
-      "
-    >
-
-      <div
-        style="
-          padding:14px;
-          border-radius:10px;
-          background:#eff6ff;
-          border:1px solid #bfdbfe;
-        "
-      >
-        <small>Today</small>
-        <strong
-          style="
-            display:block;
-            font-size:1.35rem;
-            color:#2563eb;
-          "
-        >
-          ${money(todayData.balance)}
-        </strong>
-      </div>
-
-
-      <div
-        style="
-          padding:14px;
-          border-radius:10px;
-          background:#f0fdf4;
-          border:1px solid #bbf7d0;
-        "
-      >
-        <small>30 Days</small>
-        <strong
-          style="
-            display:block;
-            font-size:1.35rem;
-            color:#16a34a;
-          "
-        >
-          ${money(day30.balance)}
-        </strong>
-      </div>
-
-
-      <div
-        style="
-          padding:14px;
-          border-radius:10px;
-          background:#fff7ed;
-          border:1px solid #fed7aa;
-        "
-      >
-        <small>60 Days</small>
-        <strong
-          style="
-            display:block;
-            font-size:1.35rem;
-            color:#ea580c;
-          "
-        >
-          ${money(day60.balance)}
-        </strong>
-      </div>
-
-
-      <div
-        style="
-          padding:14px;
-          border-radius:10px;
-          background:#f5f3ff;
-          border:1px solid #ddd6fe;
-        "
-      >
-        <small>90 Days</small>
-        <strong
-          style="
-            display:block;
-            font-size:1.35rem;
-            color:#7c3aed;
-          "
-        >
-          ${money(day90.balance)}
-        </strong>
-      </div>
-
-    </div>
-
-
-    <div
-      style="
-        display:flex;
-        justify-content:space-between;
-        align-items:center;
-        margin-bottom:12px;
-        gap:20px;
-        flex-wrap:wrap;
-      "
-    >
-
-      <div>
-
-        <small>
-          LOWEST PROJECTED BALANCE
-        </small>
-
-        <strong
-          style="
-            display:block;
-            font-size:1.5rem;
-            color:${
-              minimum.balance <= 0
-                ? "#dc2626"
-                : "#ea580c"
-            };
-          "
-        >
-          ${money(minimum.balance)}
-        </strong>
-
-        <small>
-          Expected on ${escapeHTML(minimum.date)}
-        </small>
-
-      </div>
-
-    </div>
-
-
-    <div
-      style="
-        width:100%;
-        overflow:hidden;
-        border:1px solid #e5e7eb;
-        border-radius:12px;
-        background:#ffffff;
-        margin-bottom:20px;
-      "
-    >
-
-      <svg
-        viewBox="0 0 ${width} ${height}"
-        width="100%"
-        height="260"
-        preserveAspectRatio="none"
-        role="img"
-        aria-label="90 day projected cash balance"
-      >
-
-        ${zeroLine}
-
-        ${bufferLine}
-
-
-        <polyline
-          points="${points}"
-          fill="none"
-          stroke="#2563eb"
-          stroke-width="4"
-          stroke-linejoin="round"
-          stroke-linecap="round"
-        />
-
-
-        <circle
-          cx="${minimumX}"
-          cy="${minimumY}"
-          r="7"
-          fill="#dc2626"
-          stroke="#ffffff"
-          stroke-width="3"
-        />
-
-
-        <text
-          x="${minimumX}"
-          y="${minimumY - 14}"
-          text-anchor="middle"
-          font-size="12"
-          font-weight="bold"
-          fill="#dc2626"
-        >
-          ${money(minimum.balance)}
-        </text>
-
-
-        <text
-          x="${paddingLeft}"
-          y="${height - 10}"
-          font-size="11"
-          fill="#6b7280"
-        >
-          ${escapeHTML(firstDate)}
-        </text>
-
-
-        <text
-          x="${width - paddingRight}"
-          y="${height - 10}"
-          text-anchor="end"
-          font-size="11"
-          fill="#6b7280"
-        >
-          ${escapeHTML(lastDate)}
-        </text>
-
-      </svg>
-
-    </div>
-
-
-    <div
-      style="
-        display:flex;
-        gap:18px;
-        flex-wrap:wrap;
-        margin-bottom:20px;
-        font-size:0.85rem;
-      "
-    >
-
-      <span>
-        <span
-          style="
-            display:inline-block;
-            width:12px;
-            height:4px;
-            background:#2563eb;
-            vertical-align:middle;
-            margin-right:5px;
-          "
-        ></span>
-        Projected balance
-      </span>
-
-
-      <span>
-        <span
-          style="
-            display:inline-block;
-            width:12px;
-            height:4px;
-            background:#f59e0b;
-            vertical-align:middle;
-            margin-right:5px;
-          "
-        ></span>
-        Safety buffer
-      </span>
-
-
-      <span>
-        <span
-          style="
-            display:inline-block;
-            width:12px;
-            height:4px;
-            background:#dc2626;
-            vertical-align:middle;
-            margin-right:5px;
-          "
-        ></span>
-        $0 level
-      </span>
-
-    </div>
-
-
-    <div>
-
-      <h3
-        style="
-          margin-top:0;
-          margin-bottom:10px;
-        "
-      >
-        Upcoming Cash-Flow Events
-      </h3>
-
-      ${eventsHTML}
-
-    </div>
-
-  `;
+      }
+    ).join("");
 }
+
 
 // =====================================================
 // MINIMUM 90-DAY BALANCE
