@@ -1397,21 +1397,19 @@ async function renderForecast() {
       </div>
 
 
-      <div class="forecast-events">
+      <details class="forecast-events">
 
-        <h3>
-          Upcoming cash flow
-        </h3>
+  <summary>
+    Upcoming cash flow
+  </summary>
 
-        <div class="forecast-event-list">
+  <div class="forecast-event-list">
 
-          ${eventsHTML}
+    ${eventsHTML}
 
-        </div>
+  </div>
 
-      </div>
-
-    </div>
+</details>
 
   `;
 
