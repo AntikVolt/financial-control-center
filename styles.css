@@ -473,3 +473,54 @@ button {
   display: inline-block;
   font-weight: 700;
 }
+
+/* STATUS BADGE */
+
+.summary strong#status.status-ok {
+  display: inline-block;
+  width: fit-content;
+  padding: 6px 14px;
+  margin: 8px 0;
+  border-radius: 999px;
+
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+
+  color: #166534 !important;
+  background: #dcfce7 !important;
+  border: 1px solid #86efac !important;
+}
+
+.summary strong#status.status-warning {
+  display: inline-block;
+  width: fit-content;
+  padding: 6px 14px;
+  margin: 8px 0;
+  border-radius: 999px;
+
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+
+  color: #92400e !important;
+  background: #fef3c7 !important;
+  border: 1px solid #fcd34d !important;
+}
+
+.summary strong#status.status-critical {
+  display: inline-block;
+  width: fit-content;
+  padding: 6px 14px;
+  margin: 8px 0;
+  border-radius: 999px;
+
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+
+  color: #991b1b !important;
+  background: #fee2e2 !important;
+  border: 1px solid #fca5a5 !important;
+}
+
