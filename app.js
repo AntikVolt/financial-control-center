@@ -605,6 +605,7 @@ async function calculate90DayMinimum() {
 // ANALYTICS
 // ===================================================
 
+```javascript
 async function renderAnalytics() {
 
   const cashElement =
@@ -649,6 +650,10 @@ async function renderAnalytics() {
     );
 
 
+  // -----------------------------------------------
+  // CURRENT CASH
+  // -----------------------------------------------
+
   if (cashElement) {
 
     cashElement.textContent =
@@ -656,6 +661,10 @@ async function renderAnalytics() {
 
   }
 
+
+  // -----------------------------------------------
+  // LOWEST PROJECTED BALANCE
+  // -----------------------------------------------
 
   if (min90Element) {
 
@@ -672,6 +681,10 @@ async function renderAnalytics() {
 
   }
 
+
+  // -----------------------------------------------
+  // SAFE TO SPEND
+  // -----------------------------------------------
 
   let safeToSpend =
     cash - buffer;
@@ -708,18 +721,15 @@ async function renderAnalytics() {
   }
 
 
-  if (safeDetailsElement) {
-
-    safeDetailsElement.textContent =
-      `Current cash ${money(cash)} · Safety buffer ${money(buffer)} · Lowest projected balance ${money(minimum.balance)}.`;
-
-  }
-
+  // -----------------------------------------------
+  // STATUS
+  // -----------------------------------------------
 
   let status = "OK";
 
   let statusText =
     "Projected balance remains above the safety buffer.";
+
 
   if (minimum.balance <= 0) {
 
@@ -745,6 +755,36 @@ async function renderAnalytics() {
     statusElement.textContent =
       status;
 
+    statusElement.classList.remove(
+      "status-ok",
+      "status-warning",
+      "status-critical"
+    );
+
+    if (status === "OK") {
+
+      statusElement.classList.add(
+        "status-ok"
+      );
+
+    }
+
+    else if (status === "WARNING") {
+
+      statusElement.classList.add(
+        "status-warning"
+      );
+
+    }
+
+    else {
+
+      statusElement.classList.add(
+        "status-critical"
+      );
+
+    }
+
   }
 
 
@@ -756,6 +796,59 @@ async function renderAnalytics() {
   }
 
 
+  // -----------------------------------------------
+  // ANALYTICS VISUAL DETAILS
+  // -----------------------------------------------
+
+  if (safeDetailsElement) {
+
+    safeDetailsElement.innerHTML = `
+
+      <div class="analytics-metric">
+
+        <span>Current Cash</span>
+
+        <strong>
+          ${money(cash)}
+        </strong>
+
+      </div>
+
+
+      <div class="analytics-metric">
+
+        <span>Safety Buffer</span>
+
+        <strong>
+          ${money(buffer)}
+        </strong>
+
+      </div>
+
+
+      <div class="analytics-metric">
+
+        <span>Lowest Projected Balance</span>
+
+        <strong>
+          ${money(minimum.balance)}
+        </strong>
+
+        <small>
+          ${formatDate(minimum.date)}
+        </small>
+
+      </div>
+
+    `;
+
+  }
+
+
+  // -----------------------------------------------
+  // ACTION CENTER
+  // -----------------------------------------------
+
   await renderActions(
     cash,
     minimum,
@@ -763,6 +856,8 @@ async function renderAnalytics() {
   );
 
 }
+```
+
 
 
 // ===================================================
