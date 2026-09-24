@@ -443,3 +443,33 @@ button {
   }
 
 }
+
+#status.status-ok {
+  color: #166534 !important;
+  background: #dcfce7 !important;
+  border: 1px solid #86efac !important;
+  padding: 7px 12px;
+  border-radius: 999px;
+  display: inline-block;
+  font-weight: 700;
+}
+
+#status.status-warning {
+  color: #92400e !important;
+  background: #fef3c7 !important;
+  border: 1px solid #fcd34d !important;
+  padding: 7px 12px;
+  border-radius: 999px;
+  display: inline-block;
+  font-weight: 700;
+}
+
+#status.status-critical {
+  color: #991b1b !important;
+  background: #fee2e2 !important;
+  border: 1px solid #fca5a5 !important;
+  padding: 7px 12px;
+  border-radius: 999px;
+  display: inline-block;
+  font-weight: 700;
+}
