@@ -342,5 +342,27 @@ button {
   #forecast .forecast-event {
     align-items: flex-start;
   }
+#forecast .forecast-events {
+  width: 100%;
+  margin-top: 18px;
+  border: 1px solid #e1e5ea;
+  border-radius: 10px;
+  background: #fff;
+  overflow: hidden;
+}
+
+#forecast .forecast-events summary {
+  padding: 14px;
+  cursor: pointer;
+  font-weight: 600;
+  user-select: none;
+}
+
+#forecast .forecast-events summary:hover {
+  background: #f8fafc;
+}
+
+#forecast .forecast-event-list {
+  padding: 0 12px 10px;
 
 }
