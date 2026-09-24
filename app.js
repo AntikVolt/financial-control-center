@@ -994,6 +994,33 @@ async function renderForecast() {
     chartY(minimum.balance);
 
 
+  // -----------------------------------------------
+  // KEY FORECAST POINTS
+  // -----------------------------------------------
+
+  const todayIndex = 0;
+  const day30Index = Math.min(29, result.days.length - 1);
+  const day60Index = Math.min(59, result.days.length - 1);
+  const day90Index = result.days.length - 1;
+
+
+  const todayX = chartX(todayIndex);
+  const todayY = chartY(todayData.balance);
+
+  const day30X = chartX(day30Index);
+  const day30Y = chartY(day30.balance);
+
+  const day60X = chartX(day60Index);
+  const day60Y = chartY(day60.balance);
+
+  const day90X = chartX(day90Index);
+  const day90Y = chartY(day90.balance);
+
+
+  // -----------------------------------------------
+  // UPCOMING EVENTS
+  // -----------------------------------------------
+
   const upcomingEvents = [];
 
 
@@ -1321,6 +1348,8 @@ async function renderForecast() {
           aria-label="90 day cash forecast"
         >
 
+          <!-- ZERO LINE -->
+
           <line
             x1="${paddingLeft}"
             y1="${zeroLine}"
@@ -1330,6 +1359,9 @@ async function renderForecast() {
             stroke-width="1"
             stroke-dasharray="5 5"
           />
+
+
+          <!-- SAFETY BUFFER -->
 
           <line
             x1="${paddingLeft}"
@@ -1341,6 +1373,48 @@ async function renderForecast() {
             stroke-dasharray="5 5"
           />
 
+
+          <!-- 30 DAY GUIDE -->
+
+          <line
+            x1="${day30X}"
+            y1="${paddingTop}"
+            x2="${day30X}"
+            y2="${height - paddingBottom}"
+            stroke="#e5e7eb"
+            stroke-width="1"
+            stroke-dasharray="3 5"
+          />
+
+
+          <!-- 60 DAY GUIDE -->
+
+          <line
+            x1="${day60X}"
+            y1="${paddingTop}"
+            x2="${day60X}"
+            y2="${height - paddingBottom}"
+            stroke="#e5e7eb"
+            stroke-width="1"
+            stroke-dasharray="3 5"
+          />
+
+
+          <!-- 90 DAY GUIDE -->
+
+          <line
+            x1="${day90X}"
+            y1="${paddingTop}"
+            x2="${day90X}"
+            y2="${height - paddingBottom}"
+            stroke="#e5e7eb"
+            stroke-width="1"
+            stroke-dasharray="3 5"
+          />
+
+
+          <!-- BALANCE LINE -->
+
           <polyline
             points="${balancePoints}"
             fill="none"
@@ -1350,29 +1424,136 @@ async function renderForecast() {
             stroke-linecap="round"
           />
 
+
+          <!-- TODAY -->
+
+          <circle
+            cx="${todayX}"
+            cy="${todayY}"
+            r="5"
+            fill="blue"
+          >
+
+            <title>
+              Today: ${money(todayData.balance)}
+              — ${formatDate(todayData.date)}
+            </title>
+
+          </circle>
+
+
+          <!-- 30 DAYS -->
+
+          <circle
+            cx="${day30X}"
+            cy="${day30Y}"
+            r="5"
+            fill="blue"
+          >
+
+            <title>
+              30 days: ${money(day30.balance)}
+              — ${formatDate(day30.date)}
+            </title>
+
+          </circle>
+
+
+          <!-- 60 DAYS -->
+
+          <circle
+            cx="${day60X}"
+            cy="${day60Y}"
+            r="5"
+            fill="blue"
+          >
+
+            <title>
+              60 days: ${money(day60.balance)}
+              — ${formatDate(day60.date)}
+            </title>
+
+          </circle>
+
+
+          <!-- 90 DAYS -->
+
+          <circle
+            cx="${day90X}"
+            cy="${day90Y}"
+            r="5"
+            fill="blue"
+          >
+
+            <title>
+              90 days: ${money(day90.balance)}
+              — ${formatDate(day90.date)}
+            </title>
+
+          </circle>
+
+
+          <!-- LOWEST BALANCE -->
+
           <circle
             cx="${minimumX}"
             cy="${minimumY}"
-            r="5"
+            r="6"
             fill="red"
-          />
+          >
+
+            <title>
+              Lowest balance:
+              ${money(minimum.balance)}
+              — ${formatDate(minimum.date)}
+            </title>
+
+          </circle>
+
+
+          <!-- X-AXIS LABELS -->
 
           <text
-            x="${paddingLeft}"
+            x="${todayX}"
             y="${height - 10}"
             font-size="12"
+            text-anchor="middle"
           >
             Today
           </text>
 
+
           <text
-            x="${width - paddingRight}"
+            x="${day30X}"
             y="${height - 10}"
             font-size="12"
-            text-anchor="end"
+            text-anchor="middle"
+          >
+            30
+          </text>
+
+
+          <text
+            x="${day60X}"
+            y="${height - 10}"
+            font-size="12"
+            text-anchor="middle"
+          >
+            60
+          </text>
+
+
+          <text
+            x="${day90X}"
+            y="${height - 10}"
+            font-size="12"
+            text-anchor="middle"
           >
             90 days
           </text>
+
+
+          <!-- ZERO LABEL -->
 
           <text
             x="${paddingLeft + 5}"
@@ -1382,6 +1563,9 @@ async function renderForecast() {
           >
             $0
           </text>
+
+
+          <!-- BUFFER LABEL -->
 
           <text
             x="${paddingLeft + 5}"
@@ -1399,22 +1583,23 @@ async function renderForecast() {
 
       <details class="forecast-events">
 
-  <summary>
-    Upcoming cash flow
-  </summary>
+        <summary>
+          Upcoming cash flow
+        </summary>
 
-  <div class="forecast-event-list">
+        <div class="forecast-event-list">
 
-    ${eventsHTML}
+          ${eventsHTML}
 
-  </div>
+        </div>
 
-</details>
+      </details>
+
+    </div>
 
   `;
 
 }
-
 
 // ===================================================
 // RECURRING UI
