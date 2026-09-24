@@ -7,84 +7,96 @@ const db = window.supabase.createClient(
 );
 
 
-// =====================================================
+// ===================================================
 // HELPERS
-// =====================================================
+// ===================================================
 
 function money(value) {
+
   return Number(value || 0).toLocaleString("en-CA", {
     style: "currency",
     currency: "CAD"
   });
+
 }
 
 
 function escapeHTML(value) {
+
   return String(value ?? "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
+
 }
 
 
 function today() {
+
   const d = new Date();
 
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
+  return new Date(
+    d.getFullYear(),
+    d.getMonth(),
+    d.getDate()
+  );
 
-  return `${year}-${month}-${day}`;
 }
 
 
-function parseDate(dateString) {
-  const [year, month, day] =
-    dateString.split("-").map(Number);
+function parseDate(value) {
+
+  if (!value) return null;
+
+  const parts = String(value).split("-");
 
   return new Date(
-    Date.UTC(year, month - 1, day)
+    Number(parts[0]),
+    Number(parts[1]) - 1,
+    Number(parts[2])
   );
+
 }
 
 
 function formatDate(date) {
-  return date.toISOString().slice(0, 10);
+
+  if (!(date instanceof Date) || isNaN(date)) return "";
+
+  return date.toLocaleDateString("en-CA", {
+    year: "numeric",
+    month: "short",
+    day: "numeric"
+  });
+
 }
 
 
-function addDays(dateString, days) {
-  const date = parseDate(dateString);
+function addDays(date, days) {
 
-  date.setUTCDate(
-    date.getUTCDate() + days
-  );
+  const result = new Date(date);
 
-  return formatDate(date);
-}
+  result.setDate(result.getDate() + days);
 
+  return result;
 
-function daysBetween(startDate, endDate) {
-  const start = parseDate(startDate);
-  const end = parseDate(endDate);
-
-  return Math.round(
-    (end - start) / 86400000
-  );
 }
 
 
 function isLeapYear(year) {
+
   return (
     year % 4 === 0 &&
     (year % 100 !== 0 || year % 400 === 0)
   );
+
 }
 
 
 function daysInMonth(year, month) {
+
   const days = [
     31,
     isLeapYear(year) ? 29 : 28,
@@ -100,13 +112,14 @@ function daysInMonth(year, month) {
     31
   ];
 
-  return days[month - 1];
+  return days[month];
+
 }
 
 
-// =====================================================
-// ACCOUNTS
-// =====================================================
+// ===================================================
+// DATABASE
+// ===================================================
 
 async function getAccounts() {
 
@@ -116,17 +129,17 @@ async function getAccounts() {
     .order("id");
 
   if (error) {
+
     console.error("Accounts error:", error);
+
     return [];
+
   }
 
   return data || [];
+
 }
 
-
-// =====================================================
-// TRANSACTIONS
-// =====================================================
 
 async function getTransactions() {
 
@@ -138,17 +151,17 @@ async function getTransactions() {
     });
 
   if (error) {
+
     console.error("Transactions error:", error);
+
     return [];
+
   }
 
   return data || [];
+
 }
 
-
-// =====================================================
-// RECURRING DATA
-// =====================================================
 
 async function getRecurring() {
 
@@ -160,49 +173,37 @@ async function getRecurring() {
     });
 
   if (error) {
+
     console.error("Recurring error:", error);
+
     return [];
+
   }
 
   return data || [];
+
 }
 
 
-// =====================================================
-// ADD TRANSACTION
-// =====================================================
+// ===================================================
+// TRANSACTIONS
+// ===================================================
 
 async function addEvent() {
 
-  const date =
-    document.getElementById("eventDate").value;
+  const date = document.getElementById("eventDate").value;
+  const description = document.getElementById("eventDesc").value.trim();
+  const amount = Number(
+    document.getElementById("eventAmount").value
+  );
 
-  const description =
-    document.getElementById("eventDesc").value.trim();
+  if (!date || !description || !Number.isFinite(amount)) {
 
-  const amount =
-    Number(
-      document.getElementById("eventAmount").value
-    );
+    alert("Please enter date, description and amount.");
 
-
-  if (!date) {
-    alert("Please enter a date.");
     return;
+
   }
-
-
-  if (!description) {
-    alert("Please enter a description.");
-    return;
-  }
-
-
-  if (isNaN(amount)) {
-    alert("Please enter a valid amount.");
-    return;
-  }
-
 
   const { error } = await db
     .from("transactions")
@@ -212,33 +213,23 @@ async function addEvent() {
       amount: amount
     });
 
-
   if (error) {
 
-    console.error(
-      "Add transaction error:",
-      error
-    );
+    console.error("Add transaction error:", error);
 
-    alert(
-      "Could not save transaction. Check the browser console."
-    );
+    alert(error.message);
 
     return;
-  }
 
+  }
 
   document.getElementById("eventDesc").value = "";
   document.getElementById("eventAmount").value = "";
 
-
   await render();
+
 }
 
-
-// =====================================================
-// DELETE TRANSACTION
-// =====================================================
 
 async function deleteEvent(id) {
 
@@ -247,137 +238,154 @@ async function deleteEvent(id) {
     .delete()
     .eq("id", id);
 
-
   if (error) {
 
-    console.error(
-      "Delete error:",
-      error
-    );
+    console.error("Delete transaction error:", error);
 
-    alert(
-      "Could not delete transaction."
-    );
+    alert(error.message);
 
     return;
+
   }
 
-
   await render();
+
 }
 
 
-// =====================================================
-// DISPLAY TRANSACTIONS
-// =====================================================
-
 async function renderEvents() {
 
-  const container =
-    document.getElementById("events");
+  const container = document.getElementById("events");
 
   if (!container) return;
 
+  const transactions = await getTransactions();
 
-  const events =
-    await getTransactions();
-
-
-  if (!events.length) {
+  if (!transactions.length) {
 
     container.innerHTML =
-      "<p>No financial events yet.</p>";
+      "<p>No transactions yet.</p>";
 
     return;
+
   }
 
+  container.innerHTML = transactions
+    .map(item => {
 
-  container.innerHTML =
-    events.map(event => {
-
-      const amount =
-        Number(event.amount || 0);
-
+      const amount = Number(item.amount || 0);
 
       return `
         <div class="event-row">
 
           <div>
-            <strong>
-              ${escapeHTML(event.description)}
-            </strong>
-
-            <small>
-              ${escapeHTML(event.date)}
-            </small>
+            <strong>${escapeHTML(item.description)}</strong>
+            <div>${formatDate(parseDate(item.date))}</div>
           </div>
 
-          <strong class="${amount >= 0 ? "income" : "expense"}">
-            ${amount >= 0 ? "+" : ""}
-            ${money(amount)}
-          </strong>
+          <div>
+            <span style="
+              color:${amount >= 0 ? "green" : "red"};
+              font-weight:600;
+            ">
+              ${amount >= 0 ? "+" : ""}${money(amount)}
+            </span>
 
-          <button
-            type="button"
-            onclick="deleteEvent(${event.id})"
-          >
-            Delete
-          </button>
+            <button onclick="deleteEvent(${item.id})">
+              Delete
+            </button>
+          </div>
 
         </div>
       `;
 
-    }).join("");
+    })
+    .join("");
+
 }
 
 
-// =====================================================
-// CURRENT CASH
-// =====================================================
+// ===================================================
+// CASH
+// ===================================================
 
 async function calculateCash() {
 
-  const accounts =
-    await getAccounts();
+  const accounts = await getAccounts();
+  const transactions = await getTransactions();
 
-  const transactions =
-    await getTransactions();
+  let cash = accounts.reduce(
+    (sum, account) =>
+      sum + Number(account.balance || 0),
+    0
+  );
 
+  const now = today();
 
-  let cash =
-    accounts.reduce(
-      (sum, account) =>
-        sum + Number(account.balance || 0),
-      0
-    );
+  for (const transaction of transactions) {
 
+    const transactionDate =
+      parseDate(transaction.date);
 
-  const currentDate =
-    today();
+    if (
+      transactionDate &&
+      transactionDate <= now
+    ) {
 
+      cash += Number(transaction.amount || 0);
 
-  const pastAndToday =
-    transactions.filter(
-      transaction =>
-        transaction.date <= currentDate
-    );
+    }
 
-
-  cash +=
-    pastAndToday.reduce(
-      (sum, transaction) =>
-        sum + Number(transaction.amount || 0),
-      0
-    );
-
+  }
 
   return cash;
+
 }
 
 
-// =====================================================
-// RECURRING OCCURRENCES
-// =====================================================
+// ===================================================
+// RECURRING
+// ===================================================
+
+function nextRecurringDate(date, frequency) {
+
+  const result = new Date(date);
+
+  if (frequency === "weekly") {
+
+    result.setDate(result.getDate() + 7);
+
+  }
+
+  else if (frequency === "biweekly") {
+
+    result.setDate(result.getDate() + 14);
+
+  }
+
+  else if (frequency === "monthly") {
+
+    const originalDay = result.getDate();
+
+    result.setDate(1);
+
+    result.setMonth(result.getMonth() + 1);
+
+    const maxDay = daysInMonth(
+      result.getFullYear(),
+      result.getMonth()
+    );
+
+    result.setDate(
+      Math.min(originalDay, maxDay)
+    );
+
+  }
+
+  return result;
+
+}
+
 
 function getRecurringOccurrences(
   recurringItem,
@@ -388,161 +396,107 @@ function getRecurringOccurrences(
   const occurrences = [];
 
   let current =
-    recurringItem.start_date;
+    parseDate(recurringItem.start_date);
 
-
-  if (!current) {
-    return occurrences;
-  }
-
+  if (!current) return occurrences;
 
   while (current < startDate) {
 
-    current =
-      nextRecurringDate(
-        current,
-        recurringItem.frequency
-      );
+    current = nextRecurringDate(
+      current,
+      recurringItem.frequency
+    );
 
-    if (!current) {
-      break;
-    }
   }
-
 
   while (current <= endDate) {
 
-    if (current >= startDate) {
+    occurrences.push({
+      date: new Date(current),
+      description: recurringItem.description,
+      amount: Number(recurringItem.amount || 0),
+      recurringId: recurringItem.id
+    });
 
-      occurrences.push({
-        date: current,
-        amount:
-          Number(recurringItem.amount || 0),
-        description:
-          recurringItem.description,
-        recurringId:
-          recurringItem.id
-      });
-    }
+    current = nextRecurringDate(
+      current,
+      recurringItem.frequency
+    );
 
-
-    current =
-      nextRecurringDate(
-        current,
-        recurringItem.frequency
-      );
-
-
-    if (!current) {
-      break;
-    }
   }
-
 
   return occurrences;
+
 }
 
 
-function nextRecurringDate(
-  dateString,
-  frequency
-) {
-
-  const date =
-    parseDate(dateString);
-
-
-  if (frequency === "weekly") {
-
-    date.setUTCDate(
-      date.getUTCDate() + 7
-    );
-
-    return formatDate(date);
-  }
-
-
-  if (frequency === "biweekly") {
-
-    date.setUTCDate(
-      date.getUTCDate() + 14
-    );
-
-    return formatDate(date);
-  }
-
-
-  if (frequency === "monthly") {
-
-    const originalDay =
-      date.getUTCDate();
-
-    const nextMonth =
-      date.getUTCMonth() + 1;
-
-    const year =
-      date.getUTCFullYear() +
-      Math.floor(nextMonth / 12);
-
-    const month =
-      nextMonth % 12;
-
-
-    const lastDay =
-      daysInMonth(
-        year,
-        month + 1
-      );
-
-
-    date.setUTCFullYear(year);
-    date.setUTCMonth(month);
-    date.setUTCDate(
-      Math.min(
-        originalDay,
-        lastDay
-      )
-    );
-
-
-    return formatDate(date);
-  }
-
-
-  return null;
-}
-
-
-// =====================================================
-// BUILD 90-DAY FORECAST
-// =====================================================
+// ===================================================
+// FORECAST DATA
+// ===================================================
 
 async function buildForecast() {
 
-  const currentDate =
-    today();
+  const accounts = await getAccounts();
+  const transactions = await getTransactions();
+  const recurring = await getRecurring();
 
-  const endDate =
-    addDays(
-      currentDate,
-      89
+  const start = today();
+  const end = addDays(start, 89);
+
+  let balance = accounts.reduce(
+    (sum, account) =>
+      sum + Number(account.balance || 0),
+    0
+  );
+
+  const todayTransactions = transactions.filter(
+    transaction => {
+
+      const date = parseDate(transaction.date);
+
+      return date && date <= start;
+
+    }
+  );
+
+  for (const transaction of todayTransactions) {
+
+    balance += Number(transaction.amount || 0);
+
+  }
+
+  const futureTransactions =
+    transactions.filter(transaction => {
+
+      const date = parseDate(transaction.date);
+
+      return (
+        date &&
+        date > start &&
+        date <= end
+      );
+
+    });
+
+
+  const futureRecurring = [];
+
+  for (const item of recurring) {
+
+    futureRecurring.push(
+      ...getRecurringOccurrences(
+        item,
+        addDays(start, 1),
+        end
+      )
     );
 
-
-  const currentCash =
-    await calculateCash();
+  }
 
 
-  const transactions =
-    await getTransactions();
+  const days = [];
 
-
-  const recurring =
-    await getRecurring();
-
-
-  const forecast = [];
-
+  let runningBalance = balance;
 
   for (
     let i = 0;
@@ -550,117 +504,332 @@ async function buildForecast() {
     i++
   ) {
 
-    const date =
-      addDays(
-        currentDate,
-        i
-      );
+    const date = addDays(start, i);
 
-
-    let change = 0;
-
-    const items = [];
-
-
-    // ---------------------------------------------
-    // ONE-TIME FUTURE TRANSACTIONS
-    // ---------------------------------------------
-
-    transactions
-      .filter(
+    const dayTransactions =
+      futureTransactions.filter(
         transaction =>
-          transaction.date === date &&
-          transaction.date >= currentDate
-      )
-      .forEach(
-        transaction => {
-
-          const amount =
-            Number(
-              transaction.amount || 0
-            );
-
-
-          change += amount;
-
-
-          items.push({
-            description:
-              transaction.description,
-            amount: amount
-          });
-        }
+          parseDate(transaction.date)
+            .getTime() === date.getTime()
       );
 
+    const dayRecurring =
+      futureRecurring.filter(
+        occurrence =>
+          occurrence.date.getTime() === date.getTime()
+      );
 
-    // ---------------------------------------------
-    // RECURRING TRANSACTIONS
-    // ---------------------------------------------
+    const events = [];
 
-    recurring.forEach(
-      recurringItem => {
+    for (const transaction of dayTransactions) {
 
-        const occurrences =
-          getRecurringOccurrences(
-            recurringItem,
-            date,
-            date
-          );
+      const amount =
+        Number(transaction.amount || 0);
+
+      runningBalance += amount;
+
+      events.push({
+        date,
+        description: transaction.description,
+        amount
+      });
+
+    }
+
+    for (const occurrence of dayRecurring) {
+
+      runningBalance += occurrence.amount;
+
+      events.push({
+        date,
+        description: occurrence.description,
+        amount: occurrence.amount
+      });
+
+    }
+
+    days.push({
+      date,
+      balance: runningBalance,
+      events
+    });
+
+  }
+
+  return {
+    start,
+    days
+  };
+
+}
 
 
-        occurrences.forEach(
-          occurrence => {
+// ===================================================
+// 90 DAY MINIMUM
+// ===================================================
 
-            change +=
-              occurrence.amount;
+async function calculate90DayMinimum() {
+
+  const result = await buildForecast();
+
+  if (!result.days.length) {
+
+    return {
+      balance: 0,
+      date: result.start
+    };
+
+  }
+
+  let minimum = result.days[0];
+
+  for (const day of result.days) {
+
+    if (day.balance < minimum.balance) {
+
+      minimum = day;
+
+    }
+
+  }
+
+  return {
+    balance: minimum.balance,
+    date: minimum.date
+  };
+
+}
 
 
-            items.push({
-              description:
-                occurrence.description,
-              amount:
-                occurrence.amount
-            });
-          }
-        );
-      }
+// ===================================================
+// ANALYTICS
+// ===================================================
+
+async function renderAnalytics() {
+
+  const cashElement =
+    document.getElementById("cash");
+
+  const min90Element =
+    document.getElementById("min90");
+
+  const min90DateElement =
+    document.getElementById("min90Date");
+
+  const safeElement =
+    document.getElementById("safeToSpend");
+
+  const safeTextElement =
+    document.getElementById("safeToSpendText");
+
+  const safeDetailsElement =
+    document.getElementById("safeDetails");
+
+  const statusElement =
+    document.getElementById("status");
+
+  const statusTextElement =
+    document.getElementById("statusText");
+
+  const bufferElement =
+    document.getElementById("buffer");
+
+
+  const cash = await calculateCash();
+
+  const minimum =
+    await calculate90DayMinimum();
+
+
+  const buffer =
+    Number(
+      bufferElement?.value ||
+      bufferElement?.textContent ||
+      0
     );
 
 
-    forecast.push({
-      date: date,
-      change: change,
-      items: items
-    });
+  if (cashElement) {
+
+    cashElement.textContent =
+      money(cash);
+
   }
 
 
-  // ---------------------------------------------
-  // CALCULATE RUNNING BALANCE
-  // ---------------------------------------------
+  if (min90Element) {
 
-  let balance =
-    currentCash;
+    min90Element.textContent =
+      money(minimum.balance);
+
+  }
 
 
-  forecast.forEach(
-    day => {
+  if (min90DateElement) {
 
-      balance += day.change;
+    min90DateElement.textContent =
+      formatDate(minimum.date);
 
-      day.balance = balance;
-    }
+  }
+
+
+  let safeToSpend =
+    cash - buffer;
+
+
+  const futureDifference =
+    minimum.balance - cash;
+
+
+  if (futureDifference < 0) {
+
+    safeToSpend += futureDifference;
+
+  }
+
+
+  safeToSpend =
+    Math.max(0, safeToSpend);
+
+
+  if (safeElement) {
+
+    safeElement.textContent =
+      money(safeToSpend);
+
+  }
+
+
+  if (safeTextElement) {
+
+    safeTextElement.textContent =
+      "Amount currently available above your safety threshold.";
+
+  }
+
+
+  if (safeDetailsElement) {
+
+    safeDetailsElement.textContent =
+      `Current cash ${money(cash)} · Safety buffer ${money(buffer)} · Lowest projected balance ${money(minimum.balance)}.`;
+
+  }
+
+
+  let status = "OK";
+
+  let statusText =
+    "Projected balance remains above the safety buffer.";
+
+  if (minimum.balance <= 0) {
+
+    status = "CRITICAL";
+
+    statusText =
+      "Projected balance reaches zero or below.";
+
+  }
+
+  else if (minimum.balance < buffer) {
+
+    status = "WARNING";
+
+    statusText =
+      "Projected balance falls below the safety buffer.";
+
+  }
+
+
+  if (statusElement) {
+
+    statusElement.textContent =
+      status;
+
+  }
+
+
+  if (statusTextElement) {
+
+    statusTextElement.textContent =
+      statusText;
+
+  }
+
+
+  await renderActions(
+    cash,
+    minimum,
+    buffer
   );
 
-
-  return {
-    currentCash,
-    startDate: currentDate,
-    endDate,
-    days: forecast
-  };
 }
 
+
+// ===================================================
+// ACTION CENTER
+// ===================================================
+
+async function renderActions(
+  cash,
+  minimum,
+  buffer
+) {
+
+  const container =
+    document.getElementById("actions");
+
+  if (!container) return;
+
+
+  const messages = [];
+
+
+  if (minimum.balance <= 0) {
+
+    messages.push(
+      "Projected cash reaches zero or below within the next 90 days."
+    );
+
+  }
+
+  else if (minimum.balance < buffer) {
+
+    messages.push(
+      "Projected cash falls below your safety buffer."
+    );
+
+  }
+
+
+  if (minimum.balance < cash) {
+
+    messages.push(
+      `Projected low point: ${money(minimum.balance)} on ${formatDate(minimum.date)}.`
+    );
+
+  }
+
+
+  if (!messages.length) {
+
+    messages.push(
+      "No immediate cash-flow action is indicated."
+    );
+
+  }
+
+
+  container.innerHTML =
+    messages
+      .map(message => `<div>${escapeHTML(message)}</div>`)
+      .join("");
+
+}
+
+
+// ===================================================
+// FORECAST
+// ===================================================
 
 async function renderForecast() {
 
@@ -669,21 +838,23 @@ async function renderForecast() {
 
   if (!container) return;
 
+
   const result =
     await buildForecast();
 
+
   if (!result.days.length) {
+
     container.innerHTML =
-      "<p>No forecast data.</p>";
+      "<p>No forecast data available.</p>";
+
     return;
+
   }
 
 
-  // ===================================================
-  // KEY DAYS
-  // ===================================================
-
-  const todayData = result.days[0];
+  const todayData =
+    result.days[0];
 
   const day30 =
     result.days[Math.min(29, result.days.length - 1)];
@@ -695,1208 +866,36 @@ async function renderForecast() {
     result.days[result.days.length - 1];
 
 
-  // ===================================================
-  // LOWEST BALANCE
-  // ===================================================
+  let minimum =
+    result.days[0];
 
-  let minimum = result.days[0];
-  let minimumIndex = 0;
 
-  result.days.forEach(function(day, index) {
+  for (const day of result.days) {
 
     if (day.balance < minimum.balance) {
+
       minimum = day;
-      minimumIndex = index;
+
     }
 
-  });
+  }
 
-
-  // ===================================================
-  // CHART SETTINGS
-  // ===================================================
 
   const width = 900;
   const height = 300;
 
-  const left = 65;
-  const right = 25;
-  const top = 25;
-  const bottom = 45;
+  const paddingLeft = 55;
+  const paddingRight = 20;
+  const paddingTop = 20;
+  const paddingBottom = 40;
 
-  const balances =
-    result.days.map(function(day) {
-      return Number(day.balance || 0);
-    });
 
-  let minBalance =
-    Math.min.apply(null, balances);
+  const values =
+    result.days.map(day => day.balance);
 
-  let maxBalance =
-    Math.max.apply(null, balances);
 
-  const range =
-    Math.max(
-      500,
-      maxBalance - minBalance
-    );
-
-  minBalance -= range * 0.08;
-  maxBalance += range * 0.08;
-
-
-  function chartX(index) {
-
-    return (
-      left +
-      (
-        index /
-        (result.days.length - 1)
-      ) *
-      (
-        width -
-        left -
-        right
-      )
-    );
-
-  }
-
-
-  function chartY(balance) {
-
-    return (
-      top +
-      (
-        (maxBalance - balance) /
-        (maxBalance - minBalance)
-      ) *
-      (
-        height -
-        top -
-        bottom
-      )
-    );
-
-  }
-
-
-  const points =
-    result.days.map(function(day, index) {
-
-      return (
-        chartX(index) +
-        "," +
-        chartY(day.balance)
-      );
-
-    }).join(" ");
-
-
-  // ===================================================
-  // ZERO LINE
-  // ===================================================
-
-  let zeroLine = "";
-
-  if (
-    minBalance <= 0 &&
-    maxBalance >= 0
-  ) {
-
-    const zeroY =
-      chartY(0);
-
-    zeroLine = `
-      <line
-        x1="${left}"
-        y1="${zeroY}"
-        x2="${width - right}"
-        y2="${zeroY}"
-        stroke="#dc2626"
-        stroke-width="2"
-        stroke-dasharray="7 6"
-      />
-
-      <text
-        x="${left - 8}"
-        y="${zeroY - 7}"
-        text-anchor="end"
-        font-size="12"
-        fill="#dc2626"
-      >
-        $0
-      </text>
-    `;
-
-  }
-
-
-  // ===================================================
-  // SAFETY BUFFER
-  // ===================================================
-
-  const bufferInput =
-    document.getElementById("buffer");
-
-  const buffer =
-    Number(bufferInput?.value || 500);
-
-  let bufferLine = "";
-
-  if (
-    buffer >= minBalance &&
-    buffer <= maxBalance
-  ) {
-
-    const bufferY =
-      chartY(buffer);
-
-    bufferLine = `
-      <line
-        x1="${left}"
-        y1="${bufferY}"
-        x2="${width - right}"
-        y2="${bufferY}"
-        stroke="#f59e0b"
-        stroke-width="2"
-        stroke-dasharray="6 6"
-      />
-
-      <text
-        x="${left - 8}"
-        y="${bufferY - 7}"
-        text-anchor="end"
-        font-size="12"
-        fill="#d97706"
-      >
-        Buffer
-      </text>
-    `;
-
-  }
-
-
-  // ===================================================
-  // MINIMUM POINT
-  // ===================================================
-
-  const minimumX =
-    chartX(minimumIndex);
-
-  const minimumY =
-    chartY(minimum.balance);
-
-
-  // ===================================================
-  // UPCOMING EVENTS
-  // ===================================================
-
-  const upcomingEvents = [];
-
-  result.days.forEach(function(day) {
-
-    if (day.date === result.startDate) {
-      return;
-    }
-
-    day.items.forEach(function(item) {
-
-      upcomingEvents.push({
-        date: day.date,
-        description: item.description,
-        amount: Number(item.amount || 0)
-      });
-
-    });
-
-  });
-
-
-  const visibleEvents =
-    upcomingEvents.slice(0, 6);
-
-
-  let eventsHTML = "";
-
-  if (!visibleEvents.length) {
-
-    eventsHTML =
-      `
-        <p style="
-          margin:0;
-          padding:14px;
-          color:#6b7280;
-        ">
-          No scheduled cash-flow events in the next 90 days.
-        </p>
-      `;
-
-  } else {
-
-    visibleEvents.forEach(function(event) {
-
-      const amountClass =
-        event.amount >= 0
-          ? "income"
-          : "expense";
-
-      const amountText =
-        (event.amount >= 0 ? "+" : "") +
-        money(event.amount);
-
-      eventsHTML += `
-        <div
-          style="
-            display:flex;
-            justify-content:space-between;
-            align-items:center;
-            gap:15px;
-            padding:11px 14px;
-            border-bottom:1px solid #e5e7eb;
-          "
-        >
-
-          <div style="min-width:0;">
-
-            <strong
-              style="
-                display:block;
-                overflow:hidden;
-                text-overflow:ellipsis;
-                white-space:nowrap;
-              "
-            >
-              ${escapeHTML(event.description)}
-            </strong>
-
-            <small
-              style="
-                display:block;
-                color:#6b7280;
-                margin-top:3px;
-              "
-            >
-              ${escapeHTML(event.date)}
-            </small>
-
-          </div>
-
-          <strong
-            class="${amountClass}"
-            style="
-              flex-shrink:0;
-              white-space:nowrap;
-            "
-          >
-            ${amountText}
-          </strong>
-
-        </div>
-      `;
-
-    });
-
-  }
-
-
-  // ===================================================
-  // OUTPUT
-  // ===================================================
-
-  container.innerHTML = `
-
-    <style>
-
-      .forecast-summary {
-        display:grid;
-        grid-template-columns:
-          repeat(4, minmax(130px, 1fr));
-        gap:12px;
-        margin-bottom:20px;
-      }
-
-      .forecast-card {
-        box-sizing:border-box;
-        padding:14px;
-        border-radius:10px;
-        min-width:0;
-      }
-
-      .forecast-card small {
-        display:block;
-        color:#4b5563;
-      }
-
-      .forecast-card strong {
-        display:block;
-        margin-top:5px;
-        font-size:1.3rem;
-      }
-
-      .forecast-chart {
-        width:100%;
-        overflow:hidden;
-        border:1px solid #e5e7eb;
-        border-radius:12px;
-        background:#fafafa;
-      }
-
-      .forecast-chart svg {
-        display:block;
-        width:100%;
-        height:auto;
-      }
-
-      .forecast-legend {
-        display:flex;
-        flex-wrap:wrap;
-        gap:16px;
-        margin:10px 2px 22px;
-        font-size:.85rem;
-        color:#4b5563;
-      }
-
-      .forecast-event-list {
-        border:1px solid #e5e7eb;
-        border-radius:10px;
-        overflow:hidden;
-        background:#fff;
-      }
-
-
-      /* TABLET */
-
-      @media (max-width:700px) {
-
-        .forecast-summary {
-          grid-template-columns:
-            repeat(2, minmax(0, 1fr));
-        }
-
-      }
-
-
-      /* PHONE */
-
-      @media (max-width:430px) {
-
-        .forecast-summary {
-          grid-template-columns:1fr 1fr;
-          gap:8px;
-        }
-
-        .forecast-card {
-          padding:11px;
-        }
-
-        .forecast-card strong {
-          font-size:1.05rem;
-        }
-
-        .forecast-chart svg {
-          min-height:190px;
-        }
-
-        .forecast-legend {
-          gap:10px;
-          font-size:.78rem;
-        }
-
-      }
-
-    </style>
-
-
-    <!-- =========================================
-         FOUR SUMMARY CARDS
-         ========================================= -->
-
-    <div class="forecast-summary">
-
-      <div
-        class="forecast-card"
-        style="
-          background:#eff6ff;
-          border:1px solid #bfdbfe;
-        "
-      >
-        <small>Today</small>
-
-        <strong style="color:#2563eb;">
-          ${money(todayData.balance)}
-        </strong>
-      </div>
-
-
-      <div
-        class="forecast-card"
-        style="
-          background:#f0fdf4;
-          border:1px solid #bbf7d0;
-        "
-      >
-        <small>30 Days</small>
-
-        <strong style="color:#16a34a;">
-          ${money(day30.balance)}
-        </strong>
-      </div>
-
-
-      <div
-        class="forecast-card"
-        style="
-          background:#fff7ed;
-          border:1px solid #fed7aa;
-        "
-      >
-        <small>60 Days</small>
-
-        <strong style="color:#ea580c;">
-          ${money(day60.balance)}
-        </strong>
-      </div>
-
-
-      <div
-        class="forecast-card"
-        style="
-          background:#f5f3ff;
-          border:1px solid #ddd6fe;
-        "
-      >
-        <small>90 Days</small>
-
-        <strong style="color:#7c3aed;">
-          ${money(day90.balance)}
-        </strong>
-      </div>
-
-    </div>
-
-
-    <!-- =========================================
-         LOWEST BALANCE
-         ========================================= -->
-
-    <div
-      style="
-        margin-bottom:12px;
-      "
-    >
-
-      <small
-        style="
-          font-weight:700;
-          letter-spacing:.04em;
-        "
-      >
-        LOWEST PROJECTED BALANCE
-      </small>
-
-      <strong
-        style="
-          display:block;
-          margin-top:3px;
-          font-size:1.5rem;
-          color:${minimum.balance <= 0 ? "#dc2626" : "#ea580c"};
-        "
-      >
-        ${money(minimum.balance)}
-      </strong>
-
-      <small>
-        Expected on ${escapeHTML(minimum.date)}
-      </small>
-
-    </div>
-
-
-    <!-- =========================================
-         GRAPH
-         ========================================= -->
-
-    <div class="forecast-chart">
-
-      <svg
-        viewBox="0 0 ${width} ${height}"
-        preserveAspectRatio="xMidYMid meet"
-        aria-label="90 day projected cash balance"
-      >
-
-        ${zeroLine}
-
-        ${bufferLine}
-
-
-        <polyline
-          points="${points}"
-          fill="none"
-          stroke="#2563eb"
-          stroke-width="4"
-          stroke-linejoin="round"
-          stroke-linecap="round"
-        />
-
-
-        <!-- TODAY -->
-
-        <circle
-          cx="${chartX(0)}"
-          cy="${chartY(todayData.balance)}"
-          r="6"
-          fill="#2563eb"
-        />
-
-
-        <!-- MINIMUM -->
-
-        <circle
-          cx="${minimumX}"
-          cy="${minimumY}"
-          r="8"
-          fill="#dc2626"
-          stroke="#ffffff"
-          stroke-width="3"
-        />
-
-
-        <text
-          x="${minimumX}"
-          y="${minimumY - 16}"
-          text-anchor="middle"
-          font-size="12"
-          font-weight="bold"
-          fill="#dc2626"
-        >
-          ${money(minimum.balance)}
-        </text>
-
-
-        <!-- DATES -->
-
-        <text
-          x="${left}"
-          y="${height - 12}"
-          font-size="12"
-          fill="#6b7280"
-        >
-          Today
-        </text>
-
-
-        <text
-          x="${chartX(29)}"
-          y="${height - 12}"
-          text-anchor="middle"
-          font-size="12"
-          fill="#6b7280"
-        >
-          30d
-        </text>
-
-
-        <text
-          x="${chartX(59)}"
-          y="${height - 12}"
-          text-anchor="middle"
-          font-size="12"
-          fill="#6b7280"
-        >
-          60d
-        </text>
-
-
-        <text
-          x="${width - right}"
-          y="${height - 12}"
-          text-anchor="end"
-          font-size="12"
-          fill="#6b7280"
-        >
-          90d
-        </text>
-
-      </svg>
-
-    </div>
-
-
-    <!-- =========================================
-         LEGEND
-         ========================================= -->
-
-    <div class="forecast-legend">
-
-      <span>
-        <span
-          style="
-            display:inline-block;
-            width:18px;
-            height:4px;
-            background:#2563eb;
-            vertical-align:middle;
-            margin-right:5px;
-          "
-        ></span>
-        Projected balance
-      </span>
-
-
-      <span>
-        <span
-          style="
-            display:inline-block;
-            width:18px;
-            height:4px;
-            background:#f59e0b;
-            vertical-align:middle;
-            margin-right:5px;
-          "
-        ></span>
-        Safety buffer
-      </span>
-
-
-      <span>
-        <span
-          style="
-            display:inline-block;
-            width:18px;
-            height:4px;
-            background:#dc2626;
-            vertical-align:middle;
-            margin-right:5px;
-          "
-        ></span>
-        Zero balance
-      </span>
-
-    </div>
-
-
-    <!-- =========================================
-         EVENTS
-         ========================================= -->
-
-    <div>
-
-      <h3
-        style="
-          margin:0 0 8px;
-        "
-      >
-        Upcoming Cash-Flow Events
-      </h3>
-
-      <div class="forecast-event-list">
-        ${eventsHTML}
-      </div>
-
-    </div>
-
-  `;
-
-}
-```
-
-
-
-  // ===================================================
-  // RENDER FORECAST
-  // ===================================================
-
-  container.innerHTML = `
-
-    <!-- SUMMARY -->
-
-    <div
-      style="
-        display:grid;
-        grid-template-columns:repeat(4,minmax(0,1fr));
-        gap:12px;
-        margin-bottom:18px;
-      "
-    >
-
-      <div
-        style="
-          background:#eff6ff;
-          border:1px solid #bfdbfe;
-          border-radius:10px;
-          padding:14px;
-        "
-      >
-        <small>Today</small>
-
-        <strong
-          style="
-            display:block;
-            margin-top:5px;
-            font-size:1.3rem;
-            color:#2563eb;
-          "
-        >
-          ${money(todayData.balance)}
-        </strong>
-      </div>
-
-
-      <div
-        style="
-          background:#f0fdf4;
-          border:1px solid #bbf7d0;
-          border-radius:10px;
-          padding:14px;
-        "
-      >
-        <small>30 Days</small>
-
-        <strong
-          style="
-            display:block;
-            margin-top:5px;
-            font-size:1.3rem;
-            color:#16a34a;
-          "
-        >
-          ${money(day30.balance)}
-        </strong>
-      </div>
-
-
-      <div
-        style="
-          background:#fff7ed;
-          border:1px solid #fed7aa;
-          border-radius:10px;
-          padding:14px;
-        "
-      >
-        <small>60 Days</small>
-
-        <strong
-          style="
-            display:block;
-            margin-top:5px;
-            font-size:1.3rem;
-            color:#ea580c;
-          "
-        >
-          ${money(day60.balance)}
-        </strong>
-      </div>
-
-
-      <div
-        style="
-          background:#f5f3ff;
-          border:1px solid #ddd6fe;
-          border-radius:10px;
-          padding:14px;
-        "
-      >
-        <small>90 Days</small>
-
-        <strong
-          style="
-            display:block;
-            margin-top:5px;
-            font-size:1.3rem;
-            color:#7c3aed;
-          "
-        >
-          ${money(day90.balance)}
-        </strong>
-      </div>
-
-    </div>
-
-
-    <!-- LOWEST BALANCE -->
-
-    <div
-      style="
-        display:flex;
-        justify-content:space-between;
-        align-items:end;
-        margin-bottom:10px;
-        gap:20px;
-      "
-    >
-
-      <div>
-
-        <small
-          style="
-            font-weight:700;
-            letter-spacing:.04em;
-          "
-        >
-          LOWEST PROJECTED BALANCE
-        </small>
-
-        <strong
-          style="
-            display:block;
-            font-size:1.5rem;
-            margin-top:3px;
-            color:${
-              minimum.balance <= 0
-                ? "#dc2626"
-                : "#ea580c"
-            };
-          "
-        >
-          ${money(minimum.balance)}
-        </strong>
-
-        <small>
-          ${escapeHTML(minimum.date)}
-        </small>
-
-      </div>
-
-    </div>
-
-
-    <!-- CHART -->
-
-    <div
-      style="
-        width:100%;
-        border:1px solid #e5e7eb;
-        border-radius:12px;
-        background:#ffffff;
-        overflow:hidden;
-      "
-    >
-
-      <svg
-        viewBox="0 0 ${width} ${height}"
-        width="100%"
-        height="280"
-        preserveAspectRatio="none"
-      >
-
-        <!-- chart background -->
-
-        <rect
-          x="0"
-          y="0"
-          width="${width}"
-          height="${height}"
-          fill="#fafafa"
-        />
-
-
-        <!-- grid lines -->
-
-        <line
-          x1="${left}"
-          y1="${top}"
-          x2="${left}"
-          y2="${height - bottom}"
-          stroke="#d1d5db"
-        />
-
-        <line
-          x1="${left}"
-          y1="${height - bottom}"
-          x2="${width - right}"
-          y2="${height - bottom}"
-          stroke="#d1d5db"
-        />
-
-
-        ${zeroLine}
-
-        ${bufferLine}
-
-
-        <!-- balance line -->
-
-        <polyline
-          points="${points}"
-          fill="none"
-          stroke="#2563eb"
-          stroke-width="4"
-          stroke-linejoin="round"
-          stroke-linecap="round"
-        />
-
-
-        <!-- starting point -->
-
-        <circle
-          cx="${x(0)}"
-          cy="${y(todayData.balance)}"
-          r="5"
-          fill="#2563eb"
-        />
-
-
-        <!-- minimum point -->
-
-        <circle
-          cx="${minimumX}"
-          cy="${minimumY}"
-          r="8"
-          fill="#dc2626"
-          stroke="#ffffff"
-          stroke-width="3"
-        />
-
-
-        <text
-          x="${minimumX}"
-          y="${minimumY - 16}"
-          text-anchor="middle"
-          font-size="12"
-          font-weight="bold"
-          fill="#dc2626"
-        >
-          ${money(minimum.balance)}
-        </text>
-
-
-        <!-- date labels -->
-
-        <text
-          x="${left}"
-          y="${height - 12}"
-          font-size="12"
-          fill="#6b7280"
-        >
-          ${escapeHTML(result.startDate)}
-        </text>
-
-
-        <text
-          x="${x(29)}"
-          y="${height - 12}"
-          text-anchor="middle"
-          font-size="12"
-          fill="#6b7280"
-        >
-          30d
-        </text>
-
-
-        <text
-          x="${x(59)}"
-          y="${height - 12}"
-          text-anchor="middle"
-          font-size="12"
-          fill="#6b7280"
-        >
-          60d
-        </text>
-
-
-        <text
-          x="${width - right}"
-          y="${height - 12}"
-          text-anchor="end"
-          font-size="12"
-          fill="#6b7280"
-        >
-          90d
-        </text>
-
-      </svg>
-
-    </div>
-
-
-    <!-- LEGEND -->
-
-    <div
-      style="
-        display:flex;
-        flex-wrap:wrap;
-        gap:18px;
-        margin:10px 2px 22px;
-        font-size:.85rem;
-        color:#4b5563;
-      "
-    >
-
-      <span>
-        <span
-          style="
-            display:inline-block;
-            width:18px;
-            height:4px;
-            background:#2563eb;
-            vertical-align:middle;
-            margin-right:5px;
-          "
-        ></span>
-        Projected balance
-      </span>
-
-
-      <span>
-        <span
-          style="
-            display:inline-block;
-            width:18px;
-            height:4px;
-            background:#f59e0b;
-            vertical-align:middle;
-            margin-right:5px;
-          "
-        ></span>
-        Safety buffer
-      </span>
-
-
-      <span>
-        <span
-          style="
-            display:inline-block;
-            width:18px;
-            height:4px;
-            background:#dc2626;
-            vertical-align:middle;
-            margin-right:5px;
-          "
-        ></span>
-        Zero balance
-      </span>
-
-    </div>
-
-
-    <!-- EVENTS -->
-
-    <div>
-
-      <h3
-        style="
-          margin:0 0 8px;
-        "
-      >
-        Upcoming Cash-Flow Events
-      </h3>
-
-      <div
-        style="
-          border:1px solid #e5e7eb;
-          border-radius:10px;
-          overflow:hidden;
-          background:#ffffff;
-        "
-      >
-        ${eventsHTML}
-      </div>
-
-    </div>
-
-  `;
-
-}
-
-// =====================================================
-// MINIMUM 90-DAY BALANCE
-// =====================================================
-
-async function calculate90DayMinimum() {
-
-  const result =
-    await buildForecast();
-
-
-  if (!result.days.length) {
-
-    return {
-      balance:
-        result.currentCash,
-      date:
-        result.startDate
-    };
-  }
-
-
-  let minimum =
-    result.currentCash;
-
-  let minimumDate =
-    result.startDate;
-
-
-  result.days.forEach(
-    day => {
-
-      if (
-        day.balance <
-        minimum
-      ) {
-
-        minimum =
-          day.balance;
-
-        minimumDate =
-          day.date;
-      }
-    }
-  );
-
-
-  return {
-    balance: minimum,
-    date: minimumDate
-  };
-}
-
-
-// =====================================================
-// ANALYTICS
-// =====================================================
-
-async function renderAnalytics() {
-
-  const cash =
-    await calculateCash();
-
-
-  const minimum =
-    await calculate90DayMinimum();
-
-
-  const cashElement =
-    document.getElementById("cash");
-
-
-  if (cashElement) {
-
-    cashElement.textContent =
-      money(cash);
-  }
-
-
-  const minimumElement =
-    document.getElementById("min90");
-
-
-  const minimumDateElement =
-    document.getElementById("min90Date");
-
-
-  if (minimumElement) {
-
-    minimumElement.textContent =
-      money(minimum.balance);
-  }
-
-
-  if (minimumDateElement) {
-
-    minimumDateElement.textContent =
-      `Expected on ${minimum.date}`;
-  }
+  const currentCash =
+    todayData.balance;
 
 
   const bufferInput =
@@ -1905,557 +904,693 @@ async function renderAnalytics() {
 
   const buffer =
     Number(
-      bufferInput?.value || 500
+      bufferInput?.value ||
+      bufferInput?.textContent ||
+      0
     );
 
 
-  // ---------------------------------------------
-  // SAFE TO SPEND
-  // ---------------------------------------------
-
-  const futureDifference =
-    minimum.balance - cash;
-
-
-  let safe =
-    cash - buffer;
-
-
-  if (futureDifference < 0) {
-
-    safe += futureDifference;
-  }
-
-
-  safe =
-    Math.max(
+  const minValue =
+    Math.min(
       0,
-      safe
+      ...values,
+      buffer
     );
 
 
-  const safeElement =
-    document.getElementById(
-      "safeToSpend"
+  const maxValue =
+    Math.max(
+      ...values,
+      buffer,
+      currentCash
     );
 
 
-  if (safeElement) {
+  const range =
+    maxValue - minValue || 1;
 
-    safeElement.textContent =
-      money(safe);
+
+  function chartX(index) {
+
+    return (
+      paddingLeft +
+      (
+        index /
+        (result.days.length - 1)
+      ) *
+      (
+        width -
+        paddingLeft -
+        paddingRight
+      )
+    );
+
   }
 
 
-  const safeTextElement =
-    document.getElementById(
-      "safeToSpendText"
+  function chartY(value) {
+
+    return (
+      paddingTop +
+      (
+        (maxValue - value) /
+        range
+      ) *
+      (
+        height -
+        paddingTop -
+        paddingBottom
+      )
     );
 
+  }
 
-  if (safeTextElement) {
 
-    if (minimum.balance < buffer) {
+  const balancePoints =
+    result.days
+      .map((day, index) =>
+        `${chartX(index)},${chartY(day.balance)}`
+      )
+      .join(" ");
 
-      safeTextElement.textContent =
-        "Future cash flow falls below your safety buffer.";
 
-    } else if (
-      minimum.balance < cash
-    ) {
+  const zeroLine =
+    chartY(0);
 
-      safeTextElement.textContent =
-        "Future commitments reduce your available cash.";
 
-    } else {
+  const bufferLine =
+    chartY(buffer);
 
-      safeTextElement.textContent =
-        "No projected cash-flow drop below current cash.";
+
+  const minimumIndex =
+    result.days.indexOf(minimum);
+
+
+  const minimumX =
+    chartX(minimumIndex);
+
+
+  const minimumY =
+    chartY(minimum.balance);
+
+
+  const upcomingEvents = [];
+
+
+  for (const day of result.days) {
+
+    for (const event of day.events) {
+
+      upcomingEvents.push(event);
+
     }
+
   }
 
 
-  // ---------------------------------------------
-  // STATUS
-  // ---------------------------------------------
-
-  const statusElement =
-    document.getElementById("status");
-
-
-  const statusTextElement =
-    document.getElementById(
-      "statusText"
-    );
-
-
-  if (
-    minimum.balance <= 0
-  ) {
-
-    if (statusElement)
-      statusElement.textContent =
-        "CRITICAL";
-
-
-    if (statusTextElement)
-      statusTextElement.textContent =
-        "Cash is projected to reach zero or below within 90 days.";
-
-  } else if (
-    minimum.balance < buffer
-  ) {
-
-    if (statusElement)
-      statusElement.textContent =
-        "WARNING";
-
-
-    if (statusTextElement)
-      statusTextElement.textContent =
-        "Projected cash falls below your safety buffer.";
-
-  } else {
-
-    if (statusElement)
-      statusElement.textContent =
-        "OK";
-
-
-    if (statusTextElement)
-      statusTextElement.textContent =
-        "Projected cash remains above your safety buffer.";
-  }
-
-
-  // ---------------------------------------------
-  // SAFE DETAILS
-  // ---------------------------------------------
-
-  const safeDetails =
-    document.getElementById(
-      "safeDetails"
-    );
-
-
-  if (safeDetails) {
-
-    safeDetails.innerHTML = `
-      <small>
-        Current cash: ${money(cash)}
-      </small>
-      <small>
-        Safety buffer: ${money(buffer)}
-      </small>
-      <small>
-        90-day minimum: ${money(minimum.balance)}
-      </small>
-    `;
-  }
-
-
-  // ---------------------------------------------
-  // ACTION CENTER
-  // ---------------------------------------------
-
-  renderActions(
-    cash,
-    minimum,
-    buffer
+  upcomingEvents.sort(
+    (a, b) =>
+      a.date.getTime() -
+      b.date.getTime()
   );
-}
 
 
-// =====================================================
-// ACTION CENTER
-// =====================================================
-
-function renderActions(
-  cash,
-  minimum,
-  buffer
-) {
-
-  const container =
-    document.getElementById(
-      "actions"
-    );
+  const eventsToShow =
+    upcomingEvents.slice(0, 8);
 
 
-  if (!container) return;
+  let eventsHTML = "";
 
 
-  const actions = [];
+  if (!eventsToShow.length) {
 
+    eventsHTML =
+      `<div class="forecast-no-events">
+        No upcoming cash-flow events.
+      </div>`;
 
-  if (minimum.balance <= 0) {
+  }
 
-    actions.push(
-      "Projected cash reaches zero or below within 90 days."
-    );
+  else {
 
-  } else if (
-    minimum.balance < buffer
-  ) {
+    eventsHTML =
+      eventsToShow
+        .map(event => {
 
-    actions.push(
-      "Projected cash falls below your safety buffer."
-    );
+          const amount =
+            Number(event.amount || 0);
+
+          return `
+            <div class="forecast-event">
+
+              <div>
+                <strong>
+                  ${escapeHTML(event.description)}
+                </strong>
+
+                <span>
+                  ${formatDate(event.date)}
+                </span>
+              </div>
+
+              <div
+                class="${amount >= 0 ? "positive" : "negative"}"
+              >
+                ${amount >= 0 ? "+" : ""}
+                ${money(amount)}
+              </div>
+
+            </div>
+          `;
+
+        })
+        .join("");
+
   }
 
 
-  if (
-    minimum.balance < cash
-  ) {
+  container.innerHTML = `
 
-    actions.push(
-      `Future cash-flow commitments reduce available cash by ${money(cash - minimum.balance)}.`
-    );
-  }
+    <style>
 
-
-  if (!actions.length) {
-
-    actions.push(
-      "No immediate cash-flow warning."
-    );
-  }
-
-
-  container.innerHTML =
-    actions.map(
-      action =>
-        `<p>${escapeHTML(action)}</p>`
-    ).join("");
-}
-
-
-// =====================================================
-// RESET DEMO
-// =====================================================
-
-async function resetDemo() {
-
-  const confirmed =
-    confirm(
-      "Reset the cloud database to the demo data?"
-    );
-
-
-  if (!confirmed) return;
-
-
-  // ---------------------------------------------
-  // REMOVE TRANSACTIONS
-  // ---------------------------------------------
-
-  const {
-    error: deleteError
-  } = await db
-    .from("transactions")
-    .delete()
-    .neq("id", 0);
-
-
-  if (deleteError) {
-
-    console.error(
-      deleteError
-    );
-
-    alert(
-      "Could not reset transactions."
-    );
-
-    return;
-  }
-
-
-  // ---------------------------------------------
-  // REMOVE ACCOUNTS
-  // ---------------------------------------------
-
-  const {
-    error: accountDeleteError
-  } = await db
-    .from("accounts")
-    .delete()
-    .neq("id", 0);
-
-
-  if (accountDeleteError) {
-
-    console.error(
-      accountDeleteError
-    );
-
-    alert(
-      "Could not reset accounts."
-    );
-
-    return;
-  }
-
-
-  // ---------------------------------------------
-  // INSERT DEMO ACCOUNTS
-  // ---------------------------------------------
-
-  const {
-    error: insertError
-  } = await db
-    .from("accounts")
-    .insert([
-      {
-        name: "Chequing",
-        balance: 3200
-      },
-      {
-        name: "Savings",
-        balance: 850
+      .forecast-wrapper {
+        width: 100%;
+        box-sizing: border-box;
       }
-    ]);
+
+      .forecast-summary {
+        display: grid;
+        grid-template-columns:
+          repeat(4, minmax(0, 1fr));
+        gap: 12px;
+        margin-bottom: 18px;
+      }
+
+      .forecast-card {
+        min-width: 0;
+        box-sizing: border-box;
+        padding: 14px;
+        border: 1px solid #ddd;
+        border-radius: 10px;
+        background: #fff;
+      }
+
+      .forecast-card-label {
+        font-size: 12px;
+        color: #666;
+        margin-bottom: 6px;
+      }
+
+      .forecast-card-value {
+        font-size: 20px;
+        font-weight: 700;
+        overflow-wrap: anywhere;
+      }
+
+      .forecast-card-date {
+        margin-top: 4px;
+        font-size: 12px;
+        color: #777;
+      }
+
+      .forecast-low {
+        margin-bottom: 18px;
+        padding: 14px;
+        border-radius: 10px;
+        border: 1px solid #ddd;
+        background: #fff;
+      }
+
+      .forecast-low strong {
+        font-size: 18px;
+      }
+
+      .forecast-chart {
+        width: 100%;
+        overflow: hidden;
+        margin-bottom: 20px;
+      }
+
+      .forecast-chart svg {
+        display: block;
+        width: 100%;
+        height: auto;
+      }
+
+      .forecast-events {
+        margin-top: 18px;
+      }
+
+      .forecast-events h3 {
+        margin-bottom: 10px;
+      }
+
+      .forecast-event-list {
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+      }
+
+      .forecast-event {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 15px;
+        padding: 9px 11px;
+        border-bottom: 1px solid #eee;
+      }
+
+      .forecast-event > div:first-child {
+        min-width: 0;
+      }
+
+      .forecast-event strong {
+        display: block;
+        overflow-wrap: anywhere;
+      }
+
+      .forecast-event span {
+        display: block;
+        font-size: 12px;
+        color: #777;
+        margin-top: 2px;
+      }
+
+      .forecast-event .positive {
+        color: green;
+        font-weight: 700;
+        white-space: nowrap;
+      }
+
+      .forecast-event .negative {
+        color: red;
+        font-weight: 700;
+        white-space: nowrap;
+      }
+
+      .forecast-no-events {
+        padding: 12px;
+        color: #666;
+      }
+
+      @media (max-width: 700px) {
+
+        .forecast-summary {
+          grid-template-columns:
+            repeat(2, minmax(0, 1fr));
+        }
+
+        .forecast-card-value {
+          font-size: 18px;
+        }
+
+      }
+
+      @media (max-width: 430px) {
+
+        .forecast-summary {
+          grid-template-columns: 1fr;
+        }
+
+        .forecast-event {
+          align-items: flex-start;
+        }
+
+      }
+
+    </style>
 
 
-  if (insertError) {
+    <div class="forecast-wrapper">
 
-    console.error(
-      insertError
-    );
+      <div class="forecast-summary">
 
-    alert(
-      "Could not create demo accounts."
-    );
+        <div class="forecast-card">
 
-    return;
-  }
+          <div class="forecast-card-label">
+            Today
+          </div>
+
+          <div class="forecast-card-value">
+            ${money(todayData.balance)}
+          </div>
+
+          <div class="forecast-card-date">
+            ${formatDate(todayData.date)}
+          </div>
+
+        </div>
 
 
-  await render();
+        <div class="forecast-card">
+
+          <div class="forecast-card-label">
+            30 Days
+          </div>
+
+          <div class="forecast-card-value">
+            ${money(day30.balance)}
+          </div>
+
+          <div class="forecast-card-date">
+            ${formatDate(day30.date)}
+          </div>
+
+        </div>
+
+
+        <div class="forecast-card">
+
+          <div class="forecast-card-label">
+            60 Days
+          </div>
+
+          <div class="forecast-card-value">
+            ${money(day60.balance)}
+          </div>
+
+          <div class="forecast-card-date">
+            ${formatDate(day60.date)}
+          </div>
+
+        </div>
+
+
+        <div class="forecast-card">
+
+          <div class="forecast-card-label">
+            90 Days
+          </div>
+
+          <div class="forecast-card-value">
+            ${money(day90.balance)}
+          </div>
+
+          <div class="forecast-card-date">
+            ${formatDate(day90.date)}
+          </div>
+
+        </div>
+
+      </div>
+
+
+      <div class="forecast-low">
+
+        Lowest projected balance:
+
+        <strong>
+          ${money(minimum.balance)}
+        </strong>
+
+        on
+
+        <strong>
+          ${formatDate(minimum.date)}
+        </strong>
+
+      </div>
+
+
+      <div class="forecast-chart">
+
+        <svg
+          viewBox="0 0 ${width} ${height}"
+          preserveAspectRatio="xMidYMid meet"
+          role="img"
+          aria-label="90 day cash forecast"
+        >
+
+          <line
+            x1="${paddingLeft}"
+            y1="${zeroLine}"
+            x2="${width - paddingRight}"
+            y2="${zeroLine}"
+            stroke="red"
+            stroke-width="1"
+            stroke-dasharray="5 5"
+          />
+
+          <line
+            x1="${paddingLeft}"
+            y1="${bufferLine}"
+            x2="${width - paddingRight}"
+            y2="${bufferLine}"
+            stroke="orange"
+            stroke-width="1"
+            stroke-dasharray="5 5"
+          />
+
+          <polyline
+            points="${balancePoints}"
+            fill="none"
+            stroke="blue"
+            stroke-width="3"
+            stroke-linejoin="round"
+            stroke-linecap="round"
+          />
+
+          <circle
+            cx="${minimumX}"
+            cy="${minimumY}"
+            r="5"
+            fill="red"
+          />
+
+          <text
+            x="${paddingLeft}"
+            y="${height - 10}"
+            font-size="12"
+          >
+            Today
+          </text>
+
+          <text
+            x="${width - paddingRight}"
+            y="${height - 10}"
+            font-size="12"
+            text-anchor="end"
+          >
+            90 days
+          </text>
+
+          <text
+            x="${paddingLeft + 5}"
+            y="${zeroLine - 6}"
+            font-size="11"
+            fill="red"
+          >
+            $0
+          </text>
+
+          <text
+            x="${paddingLeft + 5}"
+            y="${bufferLine - 6}"
+            font-size="11"
+            fill="orange"
+          >
+            Buffer ${money(buffer)}
+          </text>
+
+        </svg>
+
+      </div>
+
+
+      <div class="forecast-events">
+
+        <h3>
+          Upcoming cash flow
+        </h3>
+
+        <div class="forecast-event-list">
+
+          ${eventsHTML}
+
+        </div>
+
+      </div>
+
+    </div>
+
+  `;
+
 }
 
 
-// =====================================================
-// RECURRING DISPLAY
-// =====================================================
+// ===================================================
+// RECURRING UI
+// ===================================================
 
 async function renderRecurring() {
 
   const container =
-    document.getElementById(
-      "recurring"
-    );
-
+    document.getElementById("recurring");
 
   if (!container) return;
 
-
-  const data =
+  const recurring =
     await getRecurring();
 
 
-  if (!data.length) {
+  if (!recurring.length) {
 
     container.innerHTML =
-      "<p>No recurring transactions yet.</p>";
+      "<p>No recurring items yet.</p>";
 
     return;
+
   }
 
 
-  container.innerHTML = "";
+  container.innerHTML =
+    recurring
+      .map(item => {
 
+        const amount =
+          Number(item.amount || 0);
 
-  data.forEach(
-    item => {
+        return `
+          <div class="event-row">
 
-      const row =
-        document.createElement(
-          "div"
-        );
+            <div>
 
+              <strong>
+                ${escapeHTML(item.description)}
+              </strong>
 
-      row.className =
-        "event-row";
+              <div>
+                ${escapeHTML(item.frequency)}
+                · starts
+                ${formatDate(parseDate(item.start_date))}
+              </div>
 
+            </div>
 
-      const amount =
-        Number(
-          item.amount || 0
-        );
+            <div>
 
+              <span style="
+                color:${amount >= 0 ? "green" : "red"};
+                font-weight:600;
+              ">
+                ${amount >= 0 ? "+" : ""}
+                ${money(amount)}
+              </span>
 
-      row.innerHTML = `
-        <div>
-          <strong>
-            ${escapeHTML(item.description)}
-          </strong>
+              <button
+                onclick="deleteRecurring(${item.id})"
+              >
+                Delete
+              </button>
 
-          <small>
-            ${escapeHTML(item.start_date)}
-            ·
-            ${escapeHTML(item.frequency)}
-          </small>
-        </div>
+            </div>
 
-        <strong class="${
-          amount >= 0
-            ? "income"
-            : "expense"
-        }">
-          ${amount >= 0 ? "+" : ""}
-          ${money(amount)}
-        </strong>
+          </div>
+        `;
 
-        <button
-          type="button"
-        >
-          Delete
-        </button>
-      `;
+      })
+      .join("");
 
-
-      row
-        .querySelector("button")
-        .addEventListener(
-          "click",
-          async () => {
-
-            const {
-              error
-            } = await db
-              .from("recurring")
-              .delete()
-              .eq(
-                "id",
-                item.id
-              );
-
-
-            if (error) {
-
-              console.error(
-                "Delete recurring error:",
-                error
-              );
-
-              alert(
-                "Could not delete recurring transaction."
-              );
-
-              return;
-            }
-
-
-            await render();
-          }
-        );
-
-
-      container.appendChild(
-        row
-      );
-    }
-  );
 }
 
 
-// =====================================================
-// ADD RECURRING
-// =====================================================
+async function deleteRecurring(id) {
+
+  const { error } = await db
+    .from("recurring")
+    .delete()
+    .eq("id", id);
+
+  if (error) {
+
+    console.error(
+      "Delete recurring error:",
+      error
+    );
+
+    alert(error.message);
+
+    return;
+
+  }
+
+  await render();
+
+}
+
 
 function setupRecurringForm() {
 
   const form =
-    document.getElementById(
-      "recForm"
-    );
-
+    document.getElementById("recForm");
 
   if (!form) return;
 
 
   form.addEventListener(
     "submit",
-    async function(event) {
+    async event => {
 
       event.preventDefault();
 
 
       const description =
-        document
-          .getElementById("recDesc")
+        document.getElementById("recDesc")
           .value
           .trim();
 
 
       const amount =
         Number(
-          document
-            .getElementById("recAmount")
+          document.getElementById("recAmount")
             .value
         );
 
 
       const frequency =
-        document
-          .getElementById("recFreq")
+        document.getElementById("recFreq")
           .value;
 
 
       const startDate =
-        document
-          .getElementById("recStart")
+        document.getElementById("recStart")
           .value;
 
 
-      if (!description) {
+      if (
+        !description ||
+        !Number.isFinite(amount) ||
+        !frequency ||
+        !startDate
+      ) {
 
         alert(
-          "Please enter a description."
+          "Please enter all recurring fields."
         );
 
         return;
+
       }
 
 
-      if (isNaN(amount)) {
+      const { error } =
+        await db
+          .from("recurring")
+          .insert({
 
-        alert(
-          "Please enter a valid amount."
-        );
+            description:
+              description,
 
-        return;
-      }
+            amount:
+              amount,
 
+            frequency:
+              frequency,
 
-      if (!startDate) {
+            start_date:
+              startDate
 
-        alert(
-          "Please enter a start date."
-        );
-
-        return;
-      }
-
-
-      const {
-        error
-      } = await db
-        .from("recurring")
-        .insert({
-          description:
-            description,
-
-          amount:
-            amount,
-
-          frequency:
-            frequency,
-
-          start_date:
-            startDate
-        });
+          });
 
 
       if (error) {
@@ -2465,100 +1600,193 @@ function setupRecurringForm() {
           error
         );
 
-        alert(
-          "Could not save recurring transaction."
-        );
+        alert(error.message);
 
         return;
+
       }
 
 
-      form.reset();
+      document.getElementById("recDesc").value = "";
+      document.getElementById("recAmount").value = "";
 
 
       await render();
+
     }
   );
+
 }
 
 
-// =====================================================
+// ===================================================
 // EVENT FORM
-// =====================================================
+// ===================================================
 
 function setupEventForm() {
 
   const form =
-    document.getElementById(
-      "eventForm"
-    );
-
+    document.getElementById("eventForm");
 
   if (!form) return;
 
 
   form.addEventListener(
     "submit",
-    async function(event) {
+    async event => {
 
       event.preventDefault();
 
       await addEvent();
+
     }
   );
+
 }
 
 
-// =====================================================
-// RESET BUTTON
-// =====================================================
+// ===================================================
+// RESET
+// ===================================================
 
 function setupResetButton() {
 
   const button =
-    document.getElementById(
-      "resetDemo"
-    );
-
+    document.getElementById("resetDemo");
 
   if (!button) return;
 
 
   button.addEventListener(
     "click",
-    resetDemo
+    async () => {
+
+      await resetDemo();
+
+    }
   );
+
 }
 
 
-// =====================================================
+async function resetDemo() {
+
+  const confirmed =
+    confirm(
+      "Reset accounts and transactions to demo data?"
+    );
+
+  if (!confirmed) return;
+
+
+  const transactionDelete =
+    await db
+      .from("transactions")
+      .delete()
+      .neq("id", 0);
+
+
+  if (transactionDelete.error) {
+
+    console.error(
+      "Reset transactions error:",
+      transactionDelete.error
+    );
+
+    alert(transactionDelete.error.message);
+
+    return;
+
+  }
+
+
+  const accountDelete =
+    await db
+      .from("accounts")
+      .delete()
+      .neq("id", 0);
+
+
+  if (accountDelete.error) {
+
+    console.error(
+      "Reset accounts error:",
+      accountDelete.error
+    );
+
+    alert(accountDelete.error.message);
+
+    return;
+
+  }
+
+
+  const { error } =
+    await db
+      .from("accounts")
+      .insert([
+
+        {
+          name: "Chequing",
+          balance: 3200
+        },
+
+        {
+          name: "Savings",
+          balance: 850
+        }
+
+      ]);
+
+
+  if (error) {
+
+    console.error(
+      "Reset insert error:",
+      error
+    );
+
+    alert(error.message);
+
+    return;
+
+  }
+
+
+  await render();
+
+}
+
+
+// ===================================================
 // BUFFER
-// =====================================================
+// ===================================================
 
 function setupBuffer() {
 
   const input =
-    document.getElementById(
-      "buffer"
-    );
-
+    document.getElementById("buffer");
 
   if (!input) return;
 
 
   input.addEventListener(
-    "change",
-    async function() {
+    "input",
+    async () => {
 
       await renderAnalytics();
+
+      await renderForecast();
+
     }
   );
+
 }
 
 
-// =====================================================
-// MAIN RENDER
-// =====================================================
+// ===================================================
+// RENDER
+// ===================================================
 
 async function render() {
 
@@ -2569,16 +1797,17 @@ async function render() {
   await renderForecast();
 
   await renderAnalytics();
+
 }
 
 
-// =====================================================
+// ===================================================
 // START
-// =====================================================
+// ===================================================
 
 document.addEventListener(
   "DOMContentLoaded",
-  async function() {
+  async () => {
 
     setupEventForm();
 
@@ -2594,12 +1823,15 @@ document.addEventListener(
 );
 
 
-// =====================================================
-// GLOBAL
-// =====================================================
+// ===================================================
+// GLOBAL FUNCTIONS
+// ===================================================
 
 window.deleteEvent =
   deleteEvent;
+
+window.deleteRecurring =
+  deleteRecurring;
 
 window.resetDemo =
   resetDemo;
