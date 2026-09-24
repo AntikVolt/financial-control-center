@@ -366,3 +366,80 @@ button {
   padding: 0 12px 10px;
 
 }
+```css
+/* =========================================
+   ANALYTICS
+   ========================================= */
+
+#safeDetails {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.analytics-metric {
+  padding: 14px;
+  border: 1px solid #e1e5ea;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.analytics-metric span {
+  display: block;
+  font-size: 12px;
+  color: #687386;
+  margin-bottom: 6px;
+}
+
+.analytics-metric strong {
+  display: block;
+  font-size: 20px;
+  color: #172033;
+}
+
+.analytics-metric small {
+  display: block;
+  margin-top: 4px;
+  color: #687386;
+}
+
+
+/* STATUS */
+
+.status-ok,
+.status-warning,
+.status-critical {
+  display: inline-block;
+  padding: 7px 12px;
+  border-radius: 999px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.status-ok {
+  color: #166534;
+  background: #dcfce7;
+  border: 1px solid #86efac;
+}
+
+.status-warning {
+  color: #92400e;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+}
+
+.status-critical {
+  color: #991b1b;
+  background: #fee2e2;
+  border: 1px solid #fca5a5;
+}
+
+
+@media (max-width: 700px) {
+
+  #safeDetails {
+    grid-template-columns: 1fr;
+  }
+
+}
