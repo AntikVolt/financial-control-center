@@ -635,11 +635,15 @@ async function renderAnalytics() {
     document.getElementById("buffer");
 
 
-  const cash = await calculateCash();
+  // -----------------------------------------------
+  // CALCULATIONS
+  // -----------------------------------------------
+
+  const cash =
+    await calculateCash();
 
   const minimum =
     await calculate90DayMinimum();
-
 
   const buffer =
     Number(
@@ -687,7 +691,6 @@ async function renderAnalytics() {
 
   let safeToSpend =
     cash - buffer;
-
 
   const futureDifference =
     minimum.balance - cash;
@@ -749,22 +752,68 @@ async function renderAnalytics() {
   }
 
 
+  // -----------------------------------------------
+  // STATUS VISUAL
+  // -----------------------------------------------
+
   if (statusElement) {
 
     statusElement.textContent =
       status;
 
+
+    // Remove old classes
     statusElement.classList.remove(
       "status-ok",
       "status-warning",
       "status-critical"
     );
 
+
+    // Common badge styling
+    statusElement.style.display =
+      "inline-block";
+
+    statusElement.style.width =
+      "fit-content";
+
+    statusElement.style.padding =
+      "6px 14px";
+
+    statusElement.style.margin =
+      "8px 0";
+
+    statusElement.style.borderRadius =
+      "999px";
+
+    statusElement.style.fontSize =
+      "14px";
+
+    statusElement.style.fontWeight =
+      "700";
+
+    statusElement.style.lineHeight =
+      "1.2";
+
+    statusElement.style.boxSizing =
+      "border-box";
+
+
+    // Status-specific styling
     if (status === "OK") {
 
       statusElement.classList.add(
         "status-ok"
       );
+
+      statusElement.style.color =
+        "#166534";
+
+      statusElement.style.backgroundColor =
+        "#dcfce7";
+
+      statusElement.style.border =
+        "1px solid #86efac";
 
     }
 
@@ -774,6 +823,15 @@ async function renderAnalytics() {
         "status-warning"
       );
 
+      statusElement.style.color =
+        "#92400e";
+
+      statusElement.style.backgroundColor =
+        "#fef3c7";
+
+      statusElement.style.border =
+        "1px solid #fcd34d";
+
     }
 
     else {
@@ -781,6 +839,15 @@ async function renderAnalytics() {
       statusElement.classList.add(
         "status-critical"
       );
+
+      statusElement.style.color =
+        "#991b1b";
+
+      statusElement.style.backgroundColor =
+        "#fee2e2";
+
+      statusElement.style.border =
+        "1px solid #fca5a5";
 
     }
 
@@ -796,7 +863,7 @@ async function renderAnalytics() {
 
 
   // -----------------------------------------------
-  // ANALYTICS VISUAL DETAILS
+  // ANALYTICS METRICS
   // -----------------------------------------------
 
   if (safeDetailsElement) {
@@ -805,7 +872,9 @@ async function renderAnalytics() {
 
       <div class="analytics-metric">
 
-        <span>Current Cash</span>
+        <span>
+          Current Cash
+        </span>
 
         <strong>
           ${money(cash)}
@@ -816,7 +885,9 @@ async function renderAnalytics() {
 
       <div class="analytics-metric">
 
-        <span>Safety Buffer</span>
+        <span>
+          Safety Buffer
+        </span>
 
         <strong>
           ${money(buffer)}
@@ -827,7 +898,9 @@ async function renderAnalytics() {
 
       <div class="analytics-metric">
 
-        <span>Lowest Projected Balance</span>
+        <span>
+          Lowest Projected Balance
+        </span>
 
         <strong>
           ${money(minimum.balance)}
@@ -842,7 +915,6 @@ async function renderAnalytics() {
     `;
 
   }
-
 
   // -----------------------------------------------
   // ACTION CENTER
@@ -1335,7 +1407,6 @@ async function renderForecast() {
       }
 
     </style>
-
 
     <div class="forecast-wrapper">
 
