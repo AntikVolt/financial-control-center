@@ -662,11 +662,7 @@ async function buildForecast() {
 }
 
 
-// =====================================================
-// RENDER FORECAST
-// =====================================================
-
-
+```js
 async function renderForecast() {
 
   const container =
@@ -678,20 +674,17 @@ async function renderForecast() {
     await buildForecast();
 
   if (!result.days.length) {
-
     container.innerHTML =
       "<p>No forecast data.</p>";
-
     return;
   }
 
 
   // ===================================================
-  // FIND KEY DAYS
+  // KEY DAYS
   // ===================================================
 
-  const todayData =
-    result.days[0];
+  const todayData = result.days[0];
 
   const day30 =
     result.days[Math.min(29, result.days.length - 1)];
@@ -704,21 +697,17 @@ async function renderForecast() {
 
 
   // ===================================================
-  // FIND LOWEST BALANCE
+  // LOWEST BALANCE
   // ===================================================
 
-  let minimum =
-    result.days[0];
-
+  let minimum = result.days[0];
   let minimumIndex = 0;
 
-  result.days.forEach((day, index) => {
+  result.days.forEach(function(day, index) {
 
     if (day.balance < minimum.balance) {
-
       minimum = day;
       minimumIndex = index;
-
     }
 
   });
@@ -729,7 +718,7 @@ async function renderForecast() {
   // ===================================================
 
   const width = 900;
-  const height = 280;
+  const height = 300;
 
   const left = 65;
   const right = 25;
@@ -737,30 +726,27 @@ async function renderForecast() {
   const bottom = 45;
 
   const balances =
-    result.days.map(day =>
-      Number(day.balance || 0)
-    );
+    result.days.map(function(day) {
+      return Number(day.balance || 0);
+    });
 
   let minBalance =
-    Math.min(...balances);
+    Math.min.apply(null, balances);
 
   let maxBalance =
-    Math.max(...balances);
+    Math.max.apply(null, balances);
 
-  const balanceRange =
+  const range =
     Math.max(
       500,
       maxBalance - minBalance
     );
 
-  minBalance -=
-    balanceRange * 0.08;
-
-  maxBalance +=
-    balanceRange * 0.08;
+  minBalance -= range * 0.08;
+  maxBalance += range * 0.08;
 
 
-  function x(index) {
+  function chartX(index) {
 
     return (
       left +
@@ -778,7 +764,7 @@ async function renderForecast() {
   }
 
 
-  function y(balance) {
+  function chartY(balance) {
 
     return (
       top +
@@ -796,15 +782,16 @@ async function renderForecast() {
   }
 
 
-  // ===================================================
-  // CHART LINE
-  // ===================================================
-
   const points =
-    result.days.map(
-      (day, index) =>
-        `${x(index)},${y(day.balance)}`
-    ).join(" ");
+    result.days.map(function(day, index) {
+
+      return (
+        chartX(index) +
+        "," +
+        chartY(day.balance)
+      );
+
+    }).join(" ");
 
 
   // ===================================================
@@ -819,7 +806,7 @@ async function renderForecast() {
   ) {
 
     const zeroY =
-      y(0);
+      chartY(0);
 
     zeroLine = `
       <line
@@ -847,16 +834,14 @@ async function renderForecast() {
 
 
   // ===================================================
-  // SAFETY BUFFER LINE
+  // SAFETY BUFFER
   // ===================================================
 
   const bufferInput =
     document.getElementById("buffer");
 
   const buffer =
-    Number(
-      bufferInput?.value || 500
-    );
+    Number(bufferInput?.value || 500);
 
   let bufferLine = "";
 
@@ -866,7 +851,7 @@ async function renderForecast() {
   ) {
 
     const bufferY =
-      y(buffer);
+      chartY(buffer);
 
     bufferLine = `
       <line
@@ -898,10 +883,10 @@ async function renderForecast() {
   // ===================================================
 
   const minimumX =
-    x(minimumIndex);
+    chartX(minimumIndex);
 
   const minimumY =
-    y(minimum.balance);
+    chartY(minimum.balance);
 
 
   // ===================================================
@@ -910,13 +895,13 @@ async function renderForecast() {
 
   const upcomingEvents = [];
 
-  result.days.forEach(day => {
+  result.days.forEach(function(day) {
 
     if (day.date === result.startDate) {
       return;
     }
 
-    day.items.forEach(item => {
+    day.items.forEach(function(item) {
 
       upcomingEvents.push({
         date: day.date,
@@ -938,65 +923,485 @@ async function renderForecast() {
   if (!visibleEvents.length) {
 
     eventsHTML =
-      `<p class="forecast-empty">
-        No scheduled cash-flow events in the next 90 days.
-      </p>`;
+      `
+        <p style="
+          margin:0;
+          padding:14px;
+          color:#6b7280;
+        ">
+          No scheduled cash-flow events in the next 90 days.
+        </p>
+      `;
 
   } else {
 
-    eventsHTML =
-      visibleEvents.map(event => {
+    visibleEvents.forEach(function(event) {
 
-        const amount =
-          event.amount;
+      const amountClass =
+        event.amount >= 0
+          ? "income"
+          : "expense";
 
-        return `
-          <div
-            class="forecast-event"
-            style="
-              display:flex;
-              justify-content:space-between;
-              align-items:center;
-              padding:10px 12px;
-              border-bottom:1px solid #e5e7eb;
-            "
-          >
+      const amountText =
+        (event.amount >= 0 ? "+" : "") +
+        money(event.amount);
 
-            <div>
-              <strong>
-                ${escapeHTML(event.description)}
-              </strong>
+      eventsHTML += `
+        <div
+          style="
+            display:flex;
+            justify-content:space-between;
+            align-items:center;
+            gap:15px;
+            padding:11px 14px;
+            border-bottom:1px solid #e5e7eb;
+          "
+        >
 
-              <small
-                style="
-                  display:block;
-                  color:#6b7280;
-                  margin-top:3px;
-                "
-              >
-                ${escapeHTML(event.date)}
-              </small>
-            </div>
+          <div style="min-width:0;">
 
             <strong
               style="
-                color:${
-                  amount >= 0
-                    ? "#16a34a"
-                    : "#dc2626"
-                };
+                display:block;
+                overflow:hidden;
+                text-overflow:ellipsis;
+                white-space:nowrap;
               "
             >
-              ${amount >= 0 ? "+" : ""}
-              ${money(amount)}
+              ${escapeHTML(event.description)}
             </strong>
 
-          </div>
-        `;
+            <small
+              style="
+                display:block;
+                color:#6b7280;
+                margin-top:3px;
+              "
+            >
+              ${escapeHTML(event.date)}
+            </small>
 
-      }).join("");
+          </div>
+
+          <strong
+            class="${amountClass}"
+            style="
+              flex-shrink:0;
+              white-space:nowrap;
+            "
+          >
+            ${amountText}
+          </strong>
+
+        </div>
+      `;
+
+    });
 
   }
+
+
+  // ===================================================
+  // OUTPUT
+  // ===================================================
+
+  container.innerHTML = `
+
+    <style>
+
+      .forecast-summary {
+        display:grid;
+        grid-template-columns:
+          repeat(4, minmax(130px, 1fr));
+        gap:12px;
+        margin-bottom:20px;
+      }
+
+      .forecast-card {
+        box-sizing:border-box;
+        padding:14px;
+        border-radius:10px;
+        min-width:0;
+      }
+
+      .forecast-card small {
+        display:block;
+        color:#4b5563;
+      }
+
+      .forecast-card strong {
+        display:block;
+        margin-top:5px;
+        font-size:1.3rem;
+      }
+
+      .forecast-chart {
+        width:100%;
+        overflow:hidden;
+        border:1px solid #e5e7eb;
+        border-radius:12px;
+        background:#fafafa;
+      }
+
+      .forecast-chart svg {
+        display:block;
+        width:100%;
+        height:auto;
+      }
+
+      .forecast-legend {
+        display:flex;
+        flex-wrap:wrap;
+        gap:16px;
+        margin:10px 2px 22px;
+        font-size:.85rem;
+        color:#4b5563;
+      }
+
+      .forecast-event-list {
+        border:1px solid #e5e7eb;
+        border-radius:10px;
+        overflow:hidden;
+        background:#fff;
+      }
+
+
+      /* TABLET */
+
+      @media (max-width:700px) {
+
+        .forecast-summary {
+          grid-template-columns:
+            repeat(2, minmax(0, 1fr));
+        }
+
+      }
+
+
+      /* PHONE */
+
+      @media (max-width:430px) {
+
+        .forecast-summary {
+          grid-template-columns:1fr 1fr;
+          gap:8px;
+        }
+
+        .forecast-card {
+          padding:11px;
+        }
+
+        .forecast-card strong {
+          font-size:1.05rem;
+        }
+
+        .forecast-chart svg {
+          min-height:190px;
+        }
+
+        .forecast-legend {
+          gap:10px;
+          font-size:.78rem;
+        }
+
+      }
+
+    </style>
+
+
+    <!-- =========================================
+         FOUR SUMMARY CARDS
+         ========================================= -->
+
+    <div class="forecast-summary">
+
+      <div
+        class="forecast-card"
+        style="
+          background:#eff6ff;
+          border:1px solid #bfdbfe;
+        "
+      >
+        <small>Today</small>
+
+        <strong style="color:#2563eb;">
+          ${money(todayData.balance)}
+        </strong>
+      </div>
+
+
+      <div
+        class="forecast-card"
+        style="
+          background:#f0fdf4;
+          border:1px solid #bbf7d0;
+        "
+      >
+        <small>30 Days</small>
+
+        <strong style="color:#16a34a;">
+          ${money(day30.balance)}
+        </strong>
+      </div>
+
+
+      <div
+        class="forecast-card"
+        style="
+          background:#fff7ed;
+          border:1px solid #fed7aa;
+        "
+      >
+        <small>60 Days</small>
+
+        <strong style="color:#ea580c;">
+          ${money(day60.balance)}
+        </strong>
+      </div>
+
+
+      <div
+        class="forecast-card"
+        style="
+          background:#f5f3ff;
+          border:1px solid #ddd6fe;
+        "
+      >
+        <small>90 Days</small>
+
+        <strong style="color:#7c3aed;">
+          ${money(day90.balance)}
+        </strong>
+      </div>
+
+    </div>
+
+
+    <!-- =========================================
+         LOWEST BALANCE
+         ========================================= -->
+
+    <div
+      style="
+        margin-bottom:12px;
+      "
+    >
+
+      <small
+        style="
+          font-weight:700;
+          letter-spacing:.04em;
+        "
+      >
+        LOWEST PROJECTED BALANCE
+      </small>
+
+      <strong
+        style="
+          display:block;
+          margin-top:3px;
+          font-size:1.5rem;
+          color:${minimum.balance <= 0 ? "#dc2626" : "#ea580c"};
+        "
+      >
+        ${money(minimum.balance)}
+      </strong>
+
+      <small>
+        Expected on ${escapeHTML(minimum.date)}
+      </small>
+
+    </div>
+
+
+    <!-- =========================================
+         GRAPH
+         ========================================= -->
+
+    <div class="forecast-chart">
+
+      <svg
+        viewBox="0 0 ${width} ${height}"
+        preserveAspectRatio="xMidYMid meet"
+        aria-label="90 day projected cash balance"
+      >
+
+        ${zeroLine}
+
+        ${bufferLine}
+
+
+        <polyline
+          points="${points}"
+          fill="none"
+          stroke="#2563eb"
+          stroke-width="4"
+          stroke-linejoin="round"
+          stroke-linecap="round"
+        />
+
+
+        <!-- TODAY -->
+
+        <circle
+          cx="${chartX(0)}"
+          cy="${chartY(todayData.balance)}"
+          r="6"
+          fill="#2563eb"
+        />
+
+
+        <!-- MINIMUM -->
+
+        <circle
+          cx="${minimumX}"
+          cy="${minimumY}"
+          r="8"
+          fill="#dc2626"
+          stroke="#ffffff"
+          stroke-width="3"
+        />
+
+
+        <text
+          x="${minimumX}"
+          y="${minimumY - 16}"
+          text-anchor="middle"
+          font-size="12"
+          font-weight="bold"
+          fill="#dc2626"
+        >
+          ${money(minimum.balance)}
+        </text>
+
+
+        <!-- DATES -->
+
+        <text
+          x="${left}"
+          y="${height - 12}"
+          font-size="12"
+          fill="#6b7280"
+        >
+          Today
+        </text>
+
+
+        <text
+          x="${chartX(29)}"
+          y="${height - 12}"
+          text-anchor="middle"
+          font-size="12"
+          fill="#6b7280"
+        >
+          30d
+        </text>
+
+
+        <text
+          x="${chartX(59)}"
+          y="${height - 12}"
+          text-anchor="middle"
+          font-size="12"
+          fill="#6b7280"
+        >
+          60d
+        </text>
+
+
+        <text
+          x="${width - right}"
+          y="${height - 12}"
+          text-anchor="end"
+          font-size="12"
+          fill="#6b7280"
+        >
+          90d
+        </text>
+
+      </svg>
+
+    </div>
+
+
+    <!-- =========================================
+         LEGEND
+         ========================================= -->
+
+    <div class="forecast-legend">
+
+      <span>
+        <span
+          style="
+            display:inline-block;
+            width:18px;
+            height:4px;
+            background:#2563eb;
+            vertical-align:middle;
+            margin-right:5px;
+          "
+        ></span>
+        Projected balance
+      </span>
+
+
+      <span>
+        <span
+          style="
+            display:inline-block;
+            width:18px;
+            height:4px;
+            background:#f59e0b;
+            vertical-align:middle;
+            margin-right:5px;
+          "
+        ></span>
+        Safety buffer
+      </span>
+
+
+      <span>
+        <span
+          style="
+            display:inline-block;
+            width:18px;
+            height:4px;
+            background:#dc2626;
+            vertical-align:middle;
+            margin-right:5px;
+          "
+        ></span>
+        Zero balance
+      </span>
+
+    </div>
+
+
+    <!-- =========================================
+         EVENTS
+         ========================================= -->
+
+    <div>
+
+      <h3
+        style="
+          margin:0 0 8px;
+        "
+      >
+        Upcoming Cash-Flow Events
+      </h3>
+
+      <div class="forecast-event-list">
+        ${eventsHTML}
+      </div>
+
+    </div>
+
+  `;
+
+}
+```
+
 
 
   // ===================================================
