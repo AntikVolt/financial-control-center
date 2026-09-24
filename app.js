@@ -605,7 +605,6 @@ async function calculate90DayMinimum() {
 // ANALYTICS
 // ===================================================
 
-```javascript
 async function renderAnalytics() {
 
   const cashElement =
@@ -856,9 +855,6 @@ async function renderAnalytics() {
   );
 
 }
-```
-
-
 
 // ===================================================
 // ACTION CENTER
@@ -1189,8 +1185,6 @@ async function renderForecast() {
         .join("");
 
   }
-
-
   container.innerHTML = `
 
     <style>
